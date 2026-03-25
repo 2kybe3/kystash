@@ -1,0 +1,10 @@
+[package]
+name = "kystash"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.50.0", features = ["full"] }
+actix-web = "4.13.0"
+anyhow = "1.0.102"
+clap = "4.6.0"
