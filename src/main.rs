@@ -10,6 +10,49 @@
  * This program comes with ABSOLUTELY NO WARRANTY!
  */
 
-fn main() {
-    println!("Hello!");
+pub mod paths;
+pub mod error;
+mod logging;
+mod client;
+mod server;
+
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+use tracing::debug;
+
+#[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
+    debug: bool,
+
+    #[arg(short, long, value_name = "FILE")]
+    pub client_config: Option<PathBuf>,
+    
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    Server {
+        #[command(subcommand)]
+        command: server::commands::ServerCommands,
+        
+        #[arg(short, long , value_name = "FILE")]
+        server_config: Option<PathBuf>,
+    },
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    logging::tracing_init(cli.debug);
+    debug!("{:?}", cli);
+
+    match cli.command {
+        Commands::Server { ref command, .. } => server::handle(&cli, command).await,
+    };
+
+    Ok(())
 }
