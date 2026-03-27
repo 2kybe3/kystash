@@ -3,7 +3,7 @@ use std::process::exit;
 const LEFT: &str = ">> ";
 const RIGHT: &str = " <<";
 
-pub fn preety_box(strings: &[&str]) -> String {
+pub fn pretty_box(strings: &[&str]) -> String {
     let max_length = strings.iter().map(|s| s.len()).max().unwrap_or(0);
 
     let border = "*".repeat(LEFT.len() + max_length + RIGHT.len());
@@ -12,7 +12,11 @@ pub fn preety_box(strings: &[&str]) -> String {
     result.push_str(&format!("{}\n", border));
 
     for s in strings {
-        result.push_str(&format!("{LEFT}{: ^width$}{RIGHT}\n", s, width = max_length));
+        result.push_str(&format!(
+            "{LEFT}{: ^width$}{RIGHT}\n",
+            s,
+            width = max_length
+        ));
     }
 
     result.push_str(&format!("{}\n", border));
@@ -29,6 +33,6 @@ const DEFAULT: &[&str] = &[
 ];
 
 pub fn fatal_error() -> ! {
-    eprint!("{}", preety_box(DEFAULT));
+    eprint!("{}", pretty_box(DEFAULT));
     exit(1);
 }

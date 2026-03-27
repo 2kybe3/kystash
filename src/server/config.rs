@@ -1,11 +1,19 @@
+/*
+ * kystash - A simple image/file sharing server
+ * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
+ */
+
 use std::{collections::HashMap, process::exit};
 
-use serde::{Serialize, Deserialize};
-use tokio::{fs::{File, OpenOptions}, io::{AsyncReadExt, AsyncWriteExt}};
-use tracing::{info, error};
 use crate::paths;
+use serde::{Deserialize, Serialize};
+use tokio::{
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncWriteExt},
+};
+use tracing::{error, info};
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServerConfig {
     ip: String,
     port: u16,
@@ -15,12 +23,12 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn get_bind(&self) -> (&str ,u16) {
+    pub fn get_bind(&self) -> (&str, u16) {
         (&self.ip, self.port)
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Key {
     pub public_key: String,
 }
@@ -30,7 +38,9 @@ pub async fn get_server_cfg() -> ServerConfig {
     let path_str = path.clone().as_path().display().to_string();
     info!("server config path is {path_str}");
     if !path.exists() {
-        error!("{path_str} doesn't exists! please generate and edit it using kystash server generate-server-config");
+        error!(
+            "{path_str} doesn't exists! please generate and edit it using kystash server generate-server-config"
+        );
     }
 
     let mut file = match File::open(path).await {
@@ -48,7 +58,7 @@ pub async fn get_server_cfg() -> ServerConfig {
     };
 
     let cfg: ServerConfig = match toml::from_str(&str) {
-        Ok(v) =>  v,
+        Ok(v) => v,
         Err(e) => {
             error!("invalid server config: {e}");
             crate::error::fatal_error();
@@ -78,15 +88,21 @@ pub async fn generate_server_cfg() {
         Err(e) => {
             error!("{e}");
             crate::error::fatal_error();
-        },
+        }
     };
 
-    let mut file = match OpenOptions::new().write(true).create(true).truncate(true).open(path).await {
+    let mut file = match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .await
+    {
         Ok(v) => v,
         Err(e) => {
             error!("{e}");
             crate::error::fatal_error();
-        },
+        }
     };
 
     if let Err(e) = file.write_all(cfg.as_bytes()).await {

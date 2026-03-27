@@ -10,10 +10,10 @@
  * This program comes with ABSOLUTELY NO WARRANTY!
  */
 
-pub mod paths;
+mod client;
 pub mod error;
 mod logging;
-mod client;
+pub mod paths;
 mod server;
 
 use clap::{Parser, Subcommand};
@@ -28,7 +28,7 @@ pub struct Cli {
 
     #[arg(short, long, value_name = "FILE")]
     pub client_config: Option<PathBuf>,
-    
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -38,8 +38,8 @@ pub enum Commands {
     Server {
         #[command(subcommand)]
         command: server::commands::ServerCommands,
-        
-        #[arg(short, long , value_name = "FILE")]
+
+        #[arg(short, long, value_name = "FILE")]
         server_config: Option<PathBuf>,
     },
 }
