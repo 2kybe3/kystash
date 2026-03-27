@@ -1,11 +1,6 @@
 /*
  * kystash - A simple image/file sharing server
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
- */
-
-/*
- * kystash - A simple image/file sharing server
- * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

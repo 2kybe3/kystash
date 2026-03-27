@@ -21,6 +21,7 @@
         "--"
       ];
       includes = [ "*.rs" ];
+      excludes = [ "src/main.rs" ];
     };
   };
 }
