@@ -3,7 +3,7 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
-    crane.url = "github:ipetkov/crane";
+    crane.url = "github:kybe236/crane";
     advisory-db = {
       url = "github:rustsec/advisory-db";
       flake = false;
