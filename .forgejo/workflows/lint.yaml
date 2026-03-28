@@ -15,4 +15,4 @@ jobs:
           nix flake check git+https://git.kybe.xyz/2kybe3/kystash?rev=${FORGEJO_SHA} --max-jobs 32 -L
       - name: Push to Attic
         if: always()
-        run: attic push main $(ls -d /nix/store/*/)
+        run: attic push main --ignore-upstream-cache-filter -j 64 $(ls -d /nix/store/*/)
