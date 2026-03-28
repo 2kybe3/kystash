@@ -17,11 +17,10 @@
       command = "${pkgs.bash}/bin/bash";
       options = [
         "-euc"
-        (builtins.readFile ./fmt.sh)
+        (builtins.readFile ./copyright.sh)
         "--"
       ];
       includes = [ "*.rs" ];
-      excludes = [ "src/main.rs" ];
     };
   };
 }

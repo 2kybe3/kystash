@@ -23,7 +23,7 @@
           src = ./.;
         };
 
-        treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+        treefmtEval = treefmt-nix.lib.evalModule pkgs ./nix/treefmt.nix;
       in
       {
         devShells.default = pkgs.mkShell {
