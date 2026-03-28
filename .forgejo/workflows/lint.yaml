@@ -12,7 +12,7 @@ jobs:
           attic use main
       - name: Build & Checks
         run: |
-          nix flake build --max-jobs 32 -L
+          nix build --max-jobs 32 -L
           nix flake check --max-jobs 32 -L
       - name: Push to Attic
         if: always()
