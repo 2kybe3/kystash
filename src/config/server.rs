@@ -129,7 +129,6 @@ impl ServerConfig {
         token: &str,
         id: &str,
     ) -> Option<(&String, &ClientSettings)> {
-        info!("{id}:{token}");
         let id = Uuid::from_str(id).ok()?;
         let res: Vec<_> = self
             .clients
