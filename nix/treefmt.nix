@@ -2,6 +2,7 @@
 {
   projectRootFile = "flake.nix";
   programs = {
+    taplo.enable = true;
     typos.enable = true;
     nixfmt.enable = true;
     yamlfmt.enable = true;
