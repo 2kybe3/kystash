@@ -11,9 +11,9 @@
  */
 
 mod client;
+pub mod config;
 pub mod error;
 mod logging;
-pub mod paths;
 mod server;
 
 use clap::{Parser, Subcommand};

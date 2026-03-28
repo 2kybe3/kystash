@@ -6,13 +6,18 @@
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, http::header, web};
 use tracing::{error, info};
 
-use crate::server::{WebserverState, config::ServerConfig};
+use crate::{config::server::ServerConfig, server::WebserverState};
 
 #[get("/")]
 async fn hello(data: web::Data<WebserverState>) -> impl Responder {
     HttpResponse::PermanentRedirect()
         .insert_header((header::LOCATION, data.cfg.webserver_root_redirect()))
         .finish()
+}
+
+#[get("/authorized")]
+async fn authorized(_data: web::Data<WebserverState>) -> impl Responder {
+    HttpResponse::Ok().finish()
 }
 
 pub async fn start(cfg: ServerConfig) {

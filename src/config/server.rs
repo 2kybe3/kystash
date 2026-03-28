@@ -3,9 +3,9 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, process::exit};
+use std::{collections::HashMap, path::PathBuf, process::exit};
 
-use crate::paths;
+use crate::config::shared::get_root_config_path;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -20,7 +20,8 @@ pub struct ServerConfig {
     webserver_root_redirect: String,
     /// Generate client cfg is gonna use this field to determite the url to set
     hostname: String,
-    keys: HashMap<String, Key>,
+    #[serde(default)]
+    clients: HashMap<String, ClientSettings>,
 }
 
 impl ServerConfig {
@@ -30,8 +31,18 @@ impl ServerConfig {
             port: 3000,
             webserver_root_redirect: "https://kybe.xyz/kystash".into(),
             hostname: "https://i.kybe.xyz/".into(),
-            keys: HashMap::new(),
+            clients: HashMap::new(),
         }
+    }
+
+    pub async fn get_path() -> PathBuf {
+        let mut path = get_root_config_path().await;
+        path.push("server.toml");
+        path
+    }
+
+    pub fn add_client(&mut self, name: &str, key: ClientSettings) {
+        self.clients.insert(name.to_string(), key);
     }
 
     pub fn get_bind(&self) -> (&str, u16) {
@@ -41,15 +52,27 @@ impl ServerConfig {
     pub fn webserver_root_redirect(&self) -> &str {
         &self.webserver_root_redirect
     }
+
+    pub fn hostname(&self) -> &str {
+        &self.hostname
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Key {
+pub struct ClientSettings {
     pub public_key: String,
 }
 
+impl ClientSettings {
+    pub fn new(key: impl Into<String>) -> Self {
+        Self {
+            public_key: key.into(),
+        }
+    }
+}
+
 pub async fn get_server_cfg() -> ServerConfig {
-    let path = paths::get_config_path(paths::ConfigType::Server).await;
+    let path = ServerConfig::get_path().await;
     let path_str = path.clone().as_path().display().to_string();
     info!("server config path is {path_str}");
     if !path.exists() {
@@ -83,8 +106,14 @@ pub async fn get_server_cfg() -> ServerConfig {
     cfg
 }
 
+const CONFIG_WARN: &str = r"
+# THIS CONFIG FILE IS GENERATED.
+# PLEASE DO NOT ADD COMMENTS.
+# THEY WILL BE DELETED.
+";
+
 pub async fn generate_server_cfg(stdout: bool) {
-    let path = paths::get_config_path(paths::ConfigType::Server).await;
+    let path = ServerConfig::get_path().await;
     let path_str = path.clone().as_path().display().to_string();
     info!("server config path is {path_str}");
     if path.exists() && !stdout {
@@ -102,7 +131,7 @@ pub async fn generate_server_cfg(stdout: bool) {
     };
 
     if stdout {
-        println!("{}", cfg);
+        println!("{}\n\n{}", CONFIG_WARN, cfg);
     } else {
         let mut file = match OpenOptions::new()
             .write(true)
