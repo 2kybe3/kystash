@@ -10,10 +10,10 @@ jobs:
           nix profile add "nixpkgs#attic-client"
           attic login main https://attic.kybe.xyz/main ${{ secrets.ATTIC_KEY }}
           attic use main
-      - name: Run checks
+      - name: Build & Checks
         run: |
-          nix flake check \
-            --max-jobs 32 -L
+          nix flake build --max-jobs 32 -L
+          nix flake check --max-jobs 32 -L
       - name: Push to Attic
         if: always()
         run: attic push main $(ls -d /nix/store/*/)
