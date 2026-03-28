@@ -1,0 +1,8 @@
+Config: ip = "0.0.0.0"
+port = 3000
+webserver_root_redirect = "https://kybe.xyz/kystash"
+hostname = "https://i.kybe.xyz/"
+
+[keys]
+
+

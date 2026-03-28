@@ -3,8 +3,7 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, http::header, web};
-use tracing::{debug, error, info};
+use tracing::debug;
 
 use crate::{
     Cli,
@@ -13,54 +12,25 @@ use crate::{
 
 pub mod commands;
 pub mod config;
+mod webserver;
 
 pub async fn handle(_cli: &Cli, command: &ServerCommands) {
     match command {
         ServerCommands::Launch => run().await,
-        ServerCommands::GenerateServerConfig => config::generate_server_cfg().await,
+        ServerCommands::GenerateServerConfig { stdout } => {
+            config::generate_server_cfg(*stdout).await
+        }
         _ => todo!(),
     };
 }
 
 struct WebserverState {
-    cfg: ServerConfig,
-}
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::PermanentRedirect()
-        .insert_header((header::LOCATION, "https://kybe.xyz/"))
-        .finish()
+    pub cfg: ServerConfig,
 }
 
 async fn run() {
     let cfg = config::get_server_cfg().await;
     debug!("server cfg loaded: {cfg:?}");
 
-    debug!("starting web server");
-    let value = cfg.clone();
-    let server = match HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(WebserverState { cfg: value.clone() }))
-            .service(hello)
-    })
-    .bind(cfg.get_bind())
-    {
-        Ok(v) => v,
-        Err(e) => {
-            error!("failed to start web server");
-            error!("{e}");
-            crate::error::fatal_error();
-        }
-    };
-
-    match server.run().await {
-        Ok(_) => {
-            info!("server stopped")
-        }
-        Err(e) => {
-            error!("{e}");
-            crate::error::fatal_error();
-        }
-    };
+    webserver::start(cfg).await;
 }

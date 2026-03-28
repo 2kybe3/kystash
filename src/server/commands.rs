@@ -9,5 +9,8 @@ use clap::Subcommand;
 pub enum ServerCommands {
     Launch,
     GenerateClientConfig,
-    GenerateServerConfig,
+    GenerateServerConfig {
+        #[arg(long, action = clap::ArgAction::SetTrue)]
+        stdout: bool,
+    },
 }

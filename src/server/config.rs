@@ -17,6 +17,7 @@ use tracing::{error, info};
 pub struct ServerConfig {
     ip: String,
     port: u16,
+    webserver_root_redirect: String,
     /// Generate client cfg is gonna use this field to determite the url to set
     hostname: String,
     keys: HashMap<String, Key>,
@@ -25,6 +26,10 @@ pub struct ServerConfig {
 impl ServerConfig {
     pub fn get_bind(&self) -> (&str, u16) {
         (&self.ip, self.port)
+    }
+
+    pub fn webserver_root_redirect(&self) -> &str {
+        &self.webserver_root_redirect
     }
 }
 
@@ -68,18 +73,21 @@ pub async fn get_server_cfg() -> ServerConfig {
     cfg
 }
 
-pub async fn generate_server_cfg() {
+pub async fn generate_server_cfg(stdout: bool) {
     let path = paths::get_config_path(paths::ConfigType::Server).await;
     let path_str = path.clone().as_path().display().to_string();
     info!("server config path is {path_str}");
-    if path.exists() {
-        error!("{path_str} already exists! please remove if you want to regenerate the config.");
+    if path.exists() && !stdout {
+        error!(
+            "{path_str} already exists! please remove if you want to regenerate the config or run with the --stdout argument"
+        );
     }
 
     let cfg = ServerConfig {
-        hostname: "https://i.kybe.xyz/".into(),
         ip: "0.0.0.0".into(),
         port: 3000,
+        webserver_root_redirect: "https://kybe.xyz/kystash".into(),
+        hostname: "https://i.kybe.xyz/".into(),
         keys: HashMap::new(),
     };
 
@@ -90,6 +98,11 @@ pub async fn generate_server_cfg() {
             crate::error::fatal_error();
         }
     };
+
+    if stdout {
+        println!("{}", cfg);
+        exit(0);
+    }
 
     let mut file = match OpenOptions::new()
         .write(true)
