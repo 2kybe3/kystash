@@ -2,49 +2,80 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    crate2nix.url = "github:nix-community/crate2nix";
     treefmt-nix.url = "github:numtide/treefmt-nix";
+    crane.url = "github:ipetkov/crane";
+    advisory-db = {
+      url = "github:rustsec/advisory-db";
+      flake = false;
+    };
   };
 
   outputs =
     {
       self,
+      crane,
       nixpkgs,
-      crate2nix,
       treefmt-nix,
       flake-utils,
+      advisory-db,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        kystashRoot = crate2nix.tools.${system}.appliedCargoNix {
-          name = "kystash";
-          src = ./.;
+        treefmtEval = treefmt-nix.lib.evalModule pkgs ./nix/treefmt.nix;
+        craneLib = crane.mkLib pkgs;
+        src = craneLib.cleanCargoSource ./.;
+
+        commonArgs = {
+          inherit src;
+          strictDeps = true;
         };
 
-        treefmtEval = treefmt-nix.lib.evalModule pkgs ./nix/treefmt.nix;
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        kystash = craneLib.buildPackage (
+          commonArgs
+          // {
+            inherit cargoArtifacts;
+          }
+        );
       in
       {
-        devShells.default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
-            cargo
-            rustc
-            clippy
-            rustfmt
-          ];
-        };
-        checks = {
-          rustnix = kystashRoot.rootCrate.build.override {
-            runTests = true;
-          };
-        };
         packages = rec {
-          kystash = kystashRoot.rootCrate.build;
+          kystash = craneLib.buildPackage {
+            src = craneLib.cleanCargoSource ./.;
+          };
           default = kystash;
         };
+        apps.default = {
+          type = "app";
+          program = "${kystash}/bin/kystash";
+          meta.description = "A simple image/file sharing server/client";
+        };
+        checks = {
+          inherit kystash;
+
+          kystash-clippy = craneLib.cargoClippy (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            }
+          );
+
+          kystash-audit = craneLib.cargoAudit (
+            commonArgs
+            // {
+              inherit src advisory-db;
+            }
+          );
+
+          formatting = treefmtEval.config.build.check self;
+        };
+        devShells.default = craneLib.devShell {
+          checks = self.checks.${system};
+        };
         formatter = treefmtEval.config.build.wrapper;
-        checks.formatting = treefmtEval.config.build.check self;
       }
     );
 }

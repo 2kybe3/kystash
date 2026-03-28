@@ -1,5 +1,5 @@
 /*
- * kystash - A simple image/file sharing server
+ * kystash - A simple image/file sharing server/client
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 

@@ -13,7 +13,7 @@ jobs:
       - name: Run checks
         run: |
           nix flake check \
-            --max-jobs 32
+            --max-jobs 32 -L
       - name: Push to Attic
         if: always()
         run: attic push main $(ls -d /nix/store/*/)

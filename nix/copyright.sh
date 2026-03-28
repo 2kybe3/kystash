@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HEADER="/*\n * kystash - A simple image/file sharing server\n * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>\n */"
+HEADER="/*\n * kystash - A simple image/file sharing server/client\n * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>\n */"
 
 for file in "$@"; do
     existing_header=$(head -n 5 "$file")
