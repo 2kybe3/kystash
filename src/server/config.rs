@@ -24,6 +24,16 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
+    pub fn example() -> Self {
+        Self {
+            ip: "0.0.0.0".into(),
+            port: 3000,
+            webserver_root_redirect: "https://kybe.xyz/kystash".into(),
+            hostname: "https://i.kybe.xyz/".into(),
+            keys: HashMap::new(),
+        }
+    }
+
     pub fn get_bind(&self) -> (&str, u16) {
         (&self.ip, self.port)
     }
@@ -83,15 +93,7 @@ pub async fn generate_server_cfg(stdout: bool) {
         );
     }
 
-    let cfg = ServerConfig {
-        ip: "0.0.0.0".into(),
-        port: 3000,
-        webserver_root_redirect: "https://kybe.xyz/kystash".into(),
-        hostname: "https://i.kybe.xyz/".into(),
-        keys: HashMap::new(),
-    };
-
-    let cfg = match toml::to_string_pretty(&cfg) {
+    let cfg = match toml::to_string_pretty(&ServerConfig::example()) {
         Ok(v) => v,
         Err(e) => {
             error!("{e}");
@@ -101,28 +103,28 @@ pub async fn generate_server_cfg(stdout: bool) {
 
     if stdout {
         println!("{}", cfg);
-        exit(0);
-    }
+    } else {
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{e}");
+                crate::error::fatal_error();
+            }
+        };
 
-    let mut file = match OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .await
-    {
-        Ok(v) => v,
-        Err(e) => {
+        if let Err(e) = file.write_all(cfg.as_bytes()).await {
             error!("{e}");
             crate::error::fatal_error();
-        }
-    };
+        };
 
-    if let Err(e) = file.write_all(cfg.as_bytes()).await {
-        error!("{e}");
-        crate::error::fatal_error();
-    };
+        info!("generated {path_str}. please tweak it as needed");
+    }
 
-    info!("generated {path_str}. please tweak it as needed");
     exit(0);
 }
