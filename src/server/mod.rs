@@ -3,21 +3,26 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
+use std::path::PathBuf;
+
 use tracing::debug;
 
-use crate::{Cli, config, server::commands::ServerCommands};
+use crate::{
+    config::{self, server::ServerConfig},
+    server::commands::ServerCommands,
+};
 
 pub mod commands;
 mod webserver;
 
-pub async fn handle(_cli: &Cli, command: &ServerCommands) {
+pub async fn handle(command: &ServerCommands, server_config: Option<PathBuf>) {
     match command {
-        ServerCommands::Launch => run().await,
+        ServerCommands::Launch => run(server_config).await,
         ServerCommands::GenerateServerConfig { stdout } => {
-            config::server::generate_server_cfg(*stdout).await
+            config::server::generate_server_cfg(*stdout, server_config).await
         }
-        ServerCommands::GenerateClientConfig { name } => {
-            config::client::generate_client_cfg(name).await
+        ServerCommands::GenerateClientConfig { name, overwrite } => {
+            config::client::generate_client_cfg(name, *overwrite, server_config).await
         }
     };
 }
@@ -26,8 +31,9 @@ struct WebserverState {
     pub cfg: config::server::ServerConfig,
 }
 
-async fn run() {
-    let cfg = config::server::get_server_cfg().await;
+async fn run(server_config: Option<PathBuf>) {
+    let path = server_config.unwrap_or(ServerConfig::default_path().await);
+    let cfg = config::server::get_server_cfg(path).await;
     debug!("server cfg loaded: {cfg:?}");
 
     webserver::start(cfg).await;

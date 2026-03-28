@@ -3,29 +3,123 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, process::exit};
 
-use crate::config::{
-    server::{self, ClientSettings, ServerConfig},
-    shared::get_root_config_path,
+use crate::{
+    config::{
+        server::{self, ClientSettings, ServerConfig},
+        shared::get_root_config_path,
+    },
+    error,
 };
 use argon2::{
     Argon2, PasswordHasher,
     password_hash::{SaltString, rand_core},
 };
+use base64::{Engine, engine::general_purpose};
 use rand::distr::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tokio::{
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncWriteExt},
+    process::Command,
+};
+use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClientConfig {
     servers: HashMap<String, Server>,
 }
 
+impl ClientConfig {
+    pub fn has_server(&self, name: &str) -> bool {
+        self.get_server(name).is_some()
+    }
+
+    pub fn get_server(&self, name: &str) -> Option<&Server> {
+        self.servers.get(name)
+    }
+
+    pub fn new(server: String, id: Uuid, token: String) -> Self {
+        let mut servers = HashMap::new();
+        servers.insert("default".into(), Server::new(server, id, token));
+
+        Self { servers }
+    }
+
+    pub async fn default_path() -> PathBuf {
+        if let Ok(ow) = std::env::var("KYSTASH_CLIENT_PATH") {
+            debug!("KYSTASH_CLIENT_PATH {ow}");
+            return PathBuf::from(ow);
+        }
+        let mut path = get_root_config_path().await;
+        path.push("client.toml");
+        path
+    }
+
+    pub fn to_toml(&self) -> String {
+        match toml::to_string_pretty(self) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{e}");
+                crate::error::fatal_error();
+            }
+        }
+    }
+
+    pub async fn save(&self, path: PathBuf) {
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{e}");
+                crate::error::fatal_error();
+            }
+        };
+
+        if let Err(e) = file.write_all(self.to_toml().as_bytes()).await {
+            error!("{e}");
+            crate::error::fatal_error();
+        };
+    }
+
+    pub async fn load(path: PathBuf) -> Self {
+        let mut file = match File::open(path).await {
+            Ok(v) => v,
+            Err(e) => {
+                error!("{e}");
+                crate::error::fatal_error();
+            }
+        };
+
+        let mut str = String::new();
+        if let Err(e) = file.read_to_string(&mut str).await {
+            error!("{e}");
+            crate::error::fatal_error();
+        };
+
+        match toml::from_str(&str) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("invalid client config: {e}");
+                crate::error::fatal_error();
+            }
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Server {
     // The URL used to reach the server
     server: String,
+    // Id used to authenticate with the server
+    id: Uuid,
     // Token used to authenticate with the server
     token: Option<String>,
     // A command to run to get the token to authenticate with the server
@@ -34,43 +128,95 @@ pub struct Server {
     token_file: Option<String>,
 }
 
-impl ClientConfig {
-    // Gonna be used when the server creates a client config
-    pub fn new(server: String, token: String) -> Self {
-        let mut servers = HashMap::new();
-        servers.insert("default".into(), Server::new(server, token));
-
-        Self { servers }
-    }
-
-    pub async fn get_path() -> PathBuf {
-        let mut path = get_root_config_path().await;
-        path.push("client.toml");
-        path
-    }
-}
-
 impl Server {
-    pub fn new(server: String, token: String) -> Self {
+    pub fn new(server: String, id: Uuid, token: String) -> Self {
         Self {
             server,
+            id,
             token: Some(token),
             token_cmd: None,
             token_file: None,
         }
     }
-}
 
-pub async fn generate_client_cfg(name: &str) {
-    let mut server_cfg = {
-        let path = ServerConfig::get_path().await;
-        let path_str = path.clone().as_path().display().to_string();
-        if !path.exists() {
-            error!("{path_str} doesn't exist. please make sure to first generate a server config")
+    pub fn server(&self) -> &str {
+        &self.server
+    }
+
+    pub async fn auth(&self) -> String {
+        let token = general_purpose::STANDARD.encode(self.token().await);
+        let id = self.id.to_string();
+        let auth = format!("{id}:{token}");
+        general_purpose::STANDARD.encode(auth)
+    }
+
+    pub async fn token(&self) -> String {
+        let total = self.token.is_some() as u8
+            + self.token_cmd.is_some() as u8
+            + self.token_file.is_some() as u8;
+        if total < 1 {
+            error!("no token set for {}", self.server);
+            exit(1);
+        }
+        if total > 1 {
+            warn!("multiple token sources are set for {}", self.server);
+            info!("defaulting in order token_file > token_cmd > token");
         }
 
-        let server_config = server::get_server_cfg().await;
-        debug!("server config (pre): {:?}", server_config);
+        if let Some(token_file) = &self.token_file {
+            let path = PathBuf::from(token_file);
+            let mut file = match OpenOptions::new().read(true).open(path.clone()).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!(error = ?e, expected = ?path, server = ?self.server, "token_file not found");
+                    exit(1);
+                }
+            };
+            let mut buffer = String::new();
+            if let Err(e) = file.read_to_string(&mut buffer).await {
+                error!("{e}");
+                crate::error::fatal_error();
+            }
+            buffer
+        } else if let Some(token_cmd) = &self.token_cmd {
+            let mut parts = token_cmd.split_whitespace();
+
+            let program = match parts.next() {
+                Some(v) => v,
+                None => {
+                    error::fatal_error();
+                }
+            };
+
+            let res = match Command::new(program).args(parts).output().await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{e}");
+                    error::fatal_error();
+                }
+            };
+
+            String::from_utf8_lossy(&res.stdout).to_string()
+        } else if let Some(token) = &self.token {
+            token.clone()
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path: Option<PathBuf>) {
+    let server_path = server_config_path.unwrap_or(ServerConfig::default_path().await);
+    let mut server_cfg = {
+        if !server_path.exists() {
+            error!(
+                "{} doesn't exist. please make sure to first generate a server config",
+                server_path.clone().as_path().display().to_string()
+            )
+        }
+
+        let server_config = server::get_server_cfg(server_path.clone()).await;
+        debug!("server config (pre): {server_config:?}");
         server_config
     };
 
@@ -88,17 +234,16 @@ pub async fn generate_client_cfg(name: &str) {
         (raw_pass, password_hash)
     };
 
-    server_cfg.add_client(name, ClientSettings::new(hashed_pass));
-    let server_cfg_str = match toml::to_string_pretty(&server_cfg) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("{e}");
-            crate::error::fatal_error();
-        }
-    };
-    debug!("server config (post): {:?}", server_cfg);
+    let id = Uuid::now_v7();
 
-    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), raw_pass.clone());
+    if !overwrite && server_cfg.has_client(name) {
+        error!("Server config already has a client {name}. Use --overwrite to ignore");
+        return;
+    }
+    server_cfg.add_client(name, ClientSettings::new(id, &hashed_pass));
+    debug!("server config (post): {server_cfg:?}");
+
+    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), id, raw_pass.clone());
     let client_cfg_str = match toml::to_string_pretty(&client_cfg) {
         Ok(v) => v,
         Err(e) => {
@@ -106,11 +251,30 @@ pub async fn generate_client_cfg(name: &str) {
             crate::error::fatal_error();
         }
     };
-    debug!("client config: {:?}", client_cfg);
 
-    println!("=== CLIENT TOKEN  ===\n{raw_pass}");
-    println!("=== CLIENT CONFIG ===\n{client_cfg_str}");
-    println!("=== SERVER CONFIG ===\n{server_cfg_str}");
+    server_cfg.save(server_path).await;
+
+    let width = 40;
+
+    println!("{}", pad_line(" INFO ", width));
+    println!("{}", pad_line(" CLIENT TOKEN ", width));
+    println!("{raw_pass}");
+    println!("{}", pad_line(" CLIENT CONFIG ", width));
+    print!("{client_cfg_str}");
+    println!("{}", pad_line(" END ", width));
+}
+
+fn pad_line(text: &str, width: usize) -> String {
+    let text_len = text.len();
+    if text_len >= width {
+        return text.to_string();
+    }
+
+    let total_padding = width - text_len;
+    let left = total_padding / 2;
+    let right = total_padding - left;
+
+    format!("{}{}{}", "=".repeat(left), text, "=".repeat(right))
 }
 
 fn get_random_pass() -> String {

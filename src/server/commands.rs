@@ -11,6 +11,9 @@ pub enum ServerCommands {
     GenerateClientConfig {
         #[arg(short, long)]
         name: String,
+
+        #[arg(long)]
+        overwrite: bool,
     },
     GenerateServerConfig {
         #[arg(long, action = clap::ArgAction::SetTrue)]

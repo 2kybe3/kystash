@@ -74,6 +74,9 @@
         };
         devShells.default = craneLib.devShell {
           checks = self.checks.${system};
+
+          KYSTASH_CLIENT_PATH = "./test-client";
+          KYSTASH_SERVER_PATH = "./test-server";
         };
         formatter = treefmtEval.config.build.wrapper;
       }

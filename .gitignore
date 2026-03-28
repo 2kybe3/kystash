@@ -1,2 +1,5 @@
 /target
 /result
+/test-client
+/test-server
+/token

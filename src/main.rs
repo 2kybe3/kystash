@@ -12,6 +12,7 @@
 
 mod client;
 pub mod config;
+pub mod editor;
 pub mod error;
 mod logging;
 mod server;
@@ -26,8 +27,11 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
     debug: bool,
 
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, global = true, value_name = "FILE")]
     pub client_config: Option<PathBuf>,
+
+    #[arg(short, long, global = true, value_name = "FILE")]
+    server_config: Option<PathBuf>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -38,9 +42,11 @@ pub enum Commands {
     Server {
         #[command(subcommand)]
         command: server::commands::ServerCommands,
-
-        #[arg(short, long, value_name = "FILE")]
-        server_config: Option<PathBuf>,
+    },
+    Edit,
+    CheckServer {
+        #[arg(long)]
+        server: Option<String>,
     },
 }
 
@@ -48,10 +54,12 @@ pub enum Commands {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     logging::tracing_init(cli.debug);
-    debug!("{:?}", cli);
+    debug!("{cli:?}");
 
     match cli.command {
-        Commands::Server { ref command, .. } => server::handle(&cli, command).await,
+        Commands::Server { ref command } => server::handle(command, cli.server_config).await,
+        Commands::CheckServer { server } => client::check_server(cli.client_config, server).await,
+        Commands::Edit => client::edit(cli.client_config).await,
     };
 
     Ok(())
