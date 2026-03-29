@@ -3,7 +3,7 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use tracing::debug;
 
@@ -28,7 +28,7 @@ pub async fn handle(command: &ServerCommands, server_config: Option<PathBuf>) {
 }
 
 struct WebserverState {
-    pub cfg: config::server::ServerConfig,
+    pub cfg: Arc<config::server::ServerConfig>,
 }
 
 async fn run(server_config: Option<PathBuf>) {
