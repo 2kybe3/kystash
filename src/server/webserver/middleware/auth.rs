@@ -104,12 +104,7 @@ fn auth(
 
     let decoded_str = String::from_utf8(decoded_bytes).ok()?;
 
-    let (id, token) = decoded_str.split_once(':')?;
-
-    let token_bytes = general_purpose::STANDARD.decode(token).ok()?;
-    let token_str = String::from_utf8(token_bytes).ok()?;
-
-    let (client_id, settings) = cfg.get_client_with_token(&token_str, id)?;
+    let (client_id, settings) = cfg.get_client_with_token(&decoded_str)?;
 
     Some((client_id.to_owned(), settings.to_owned()))
 }

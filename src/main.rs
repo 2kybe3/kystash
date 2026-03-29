@@ -16,6 +16,7 @@ pub mod editor;
 pub mod error;
 mod logging;
 mod server;
+pub mod sha;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;

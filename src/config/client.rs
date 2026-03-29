@@ -10,11 +10,7 @@ use crate::{
         server::{self, ClientSettings, ServerConfig},
         shared::get_root_config_path,
     },
-    error,
-};
-use argon2::{
-    Argon2, PasswordHasher,
-    password_hash::{SaltString, rand_core},
+    error, sha,
 };
 use base64::{Engine, engine::general_purpose};
 use rand::distr::{Distribution, Uniform};
@@ -25,7 +21,6 @@ use tokio::{
     process::Command,
 };
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClientConfig {
@@ -41,9 +36,9 @@ impl ClientConfig {
         self.servers.get(name)
     }
 
-    pub fn new(server: String, id: Uuid, token: String) -> Self {
+    pub fn new(server: String, token: String) -> Self {
         let mut servers = HashMap::new();
-        servers.insert("default".into(), Server::new(server, id, token));
+        servers.insert("default".into(), Server::new(server, token));
 
         Self { servers }
     }
@@ -118,8 +113,6 @@ impl ClientConfig {
 pub struct Server {
     // The URL used to reach the server
     server: String,
-    // Id used to authenticate with the server
-    id: Uuid,
     // Token used to authenticate with the server
     token: Option<String>,
     // A command to run to get the token to authenticate with the server
@@ -129,10 +122,9 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(server: String, id: Uuid, token: String) -> Self {
+    pub fn new(server: String, token: String) -> Self {
         Self {
             server,
-            id,
             token: Some(token),
             token_cmd: None,
             token_file: None,
@@ -144,10 +136,7 @@ impl Server {
     }
 
     pub async fn auth(&self) -> String {
-        let token = general_purpose::STANDARD.encode(self.token().await);
-        let id = self.id.to_string();
-        let auth = format!("{id}:{token}");
-        general_purpose::STANDARD.encode(auth)
+        general_purpose::STANDARD.encode(&self.token().await)
     }
 
     pub async fn token(&self) -> String {
@@ -220,30 +209,17 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path
         server_config
     };
 
-    let (raw_pass, hashed_pass) = {
-        let raw_pass = get_random_pass();
-        let salt = SaltString::generate(&mut rand_core::OsRng);
-        let argon2 = Argon2::default();
-        let password_hash = match argon2.hash_password(raw_pass.as_bytes(), &salt) {
-            Ok(v) => v.to_string(),
-            Err(e) => {
-                error!("{e}");
-                crate::error::fatal_error();
-            }
-        };
-        (raw_pass, password_hash)
-    };
-
-    let id = Uuid::now_v7();
+    let raw_pass = get_random_pass();
+    let hashed_pass = sha::sha256(&raw_pass);
 
     if !overwrite && server_cfg.has_client(name) {
         error!("Server config already has a client {name}. Use --overwrite to ignore");
         return;
     }
-    server_cfg.add_client(name, ClientSettings::new(id, &hashed_pass));
+    server_cfg.add_client(name, ClientSettings::new(&hashed_pass));
     debug!("server config (post): {server_cfg:?}");
 
-    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), id, raw_pass.clone());
+    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), raw_pass.clone());
     let client_cfg_str = match toml::to_string_pretty(&client_cfg) {
         Ok(v) => v,
         Err(e) => {
@@ -254,27 +230,9 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path
 
     server_cfg.save(server_path).await;
 
-    let width = 40;
+    info!("run kystash edit to edit the client config");
 
-    println!("{}", pad_line(" INFO ", width));
-    println!("{}", pad_line(" CLIENT TOKEN ", width));
-    println!("{raw_pass}");
-    println!("{}", pad_line(" CLIENT CONFIG ", width));
     print!("{client_cfg_str}");
-    println!("{}", pad_line(" END ", width));
-}
-
-fn pad_line(text: &str, width: usize) -> String {
-    let text_len = text.len();
-    if text_len >= width {
-        return text.to_string();
-    }
-
-    let total_padding = width - text_len;
-    let left = total_padding / 2;
-    let right = total_padding - left;
-
-    format!("{}{}{}", "=".repeat(left), text, "=".repeat(right))
 }
 
 fn get_random_pass() -> String {

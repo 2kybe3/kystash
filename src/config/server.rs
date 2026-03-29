@@ -3,20 +3,17 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, path::PathBuf, process::exit, str::FromStr};
+use std::{collections::HashMap, path::PathBuf, process::exit};
 
-use crate::{config::shared::get_root_config_path, editor};
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use crate::{config::shared::get_root_config_path, editor, sha};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
-const CONFIG_WARN: &str = r"
-# THIS CONFIG FILE IS GENERATED.
+const CONFIG_WARN: &str = r"# THIS CONFIG FILE IS GENERATED.
 # PLEASE DO NOT ADD COMMENTS.
 # THEY WILL BE DELETED.
 # 
@@ -124,31 +121,12 @@ impl ServerConfig {
         self.get_client(name).is_some()
     }
 
-    pub fn get_client_with_token(
-        &self,
-        token: &str,
-        id: &str,
-    ) -> Option<(&String, &ClientSettings)> {
-        let id = Uuid::from_str(id).ok()?;
+    pub fn get_client_with_token(&self, token: &str) -> Option<(&String, &ClientSettings)> {
+        let hashed = sha::sha256(token);
         let res: Vec<_> = self
             .clients
             .iter()
-            .filter(|s| {
-                if !s.1.id.eq(&id) {
-                    return false;
-                }
-
-                let parsed_hash = match PasswordHash::new(&s.1.public_key) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!("{e}");
-                        return false;
-                    }
-                };
-                Argon2::default()
-                    .verify_password(token.as_bytes(), &parsed_hash)
-                    .is_ok()
-            })
+            .filter(|s| s.1.public_key.eq(&hashed))
             .collect();
         if res.len() > 1 {
             warn!("multiple clients share the same hashed key");
@@ -182,14 +160,12 @@ impl ServerConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClientSettings {
-    pub id: Uuid,
     pub public_key: String,
 }
 
 impl ClientSettings {
-    pub fn new(id: Uuid, key: &str) -> Self {
+    pub fn new(key: &str) -> Self {
         Self {
-            id,
             public_key: key.into(),
         }
     }
@@ -216,6 +192,7 @@ pub async fn generate_server_cfg(stdout: bool, server_config_path: Option<PathBu
         error!(
             "{path_str} already exists! please remove if you want to regenerate the config or run with the --stdout argument"
         );
+        exit(1);
     }
 
     if stdout {

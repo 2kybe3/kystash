@@ -12,7 +12,7 @@ pub enum ServerCommands {
         #[arg(short, long)]
         name: String,
 
-        #[arg(long)]
+        #[arg(short, long)]
         overwrite: bool,
     },
     GenerateServerConfig {
