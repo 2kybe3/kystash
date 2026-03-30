@@ -3,7 +3,11 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, path::PathBuf, process::exit};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 use crate::{config::shared::get_root_config_path, editor, sha};
 use serde::{Deserialize, Serialize};
@@ -68,7 +72,7 @@ impl ServerConfig {
         )
     }
 
-    pub async fn save(&self, path: PathBuf) {
+    pub async fn save(&self, path: impl AsRef<Path>) {
         let mut file = match OpenOptions::new()
             .write(true)
             .create(true)
@@ -89,7 +93,7 @@ impl ServerConfig {
         };
     }
 
-    pub async fn load(path: PathBuf) -> Self {
+    pub async fn load(path: impl AsRef<Path>) -> Self {
         let mut file = match File::open(path).await {
             Ok(v) => v,
             Err(e) => {
@@ -172,12 +176,13 @@ impl ClientSettings {
     }
 }
 
-pub async fn get_server_cfg(path: PathBuf) -> ServerConfig {
-    let path_str = path.clone().as_path().display().to_string();
-    info!("server config path is {path_str}");
+pub async fn get_server_cfg(path: impl AsRef<Path>) -> ServerConfig {
+    let path = path.as_ref();
+    info!("server config path is {}", path.display());
     if !path.exists() {
         error!(
-            "{path_str} doesn't exists! please generate and edit it using kystash server generate-server-config"
+            "{} doesn't exists! please generate and edit it using kystash server generate-server-config",
+            path.display()
         );
         exit(1);
     }
@@ -185,13 +190,17 @@ pub async fn get_server_cfg(path: PathBuf) -> ServerConfig {
     ServerConfig::load(path).await
 }
 
+pub async fn edit(server_config_path: Option<PathBuf>) {
+    editor::open(server_config_path.unwrap_or(ServerConfig::default_path().await)).await;
+}
+
 pub async fn generate_server_cfg(stdout: bool, server_config_path: Option<PathBuf>) {
     let path = server_config_path.unwrap_or(ServerConfig::default_path().await);
-    let path_str = path.clone().as_path().display().to_string();
-    info!("server config path is {path_str}");
+    info!("server config path is {}", path.display());
     if path.exists() && !stdout {
         error!(
-            "{path_str} already exists! please remove if you want to regenerate the config or run with the --stdout argument"
+            "{} already exists! please remove if you want to regenerate the config or run with the --stdout argument",
+            path.display(),
         );
         exit(1);
     }
@@ -199,8 +208,8 @@ pub async fn generate_server_cfg(stdout: bool, server_config_path: Option<PathBu
     if stdout {
         println!("{}", ServerConfig::example().to_toml());
     } else {
-        ServerConfig::example().save(path.clone()).await;
-        info!("generated {path_str}. please tweak it as needed");
+        ServerConfig::example().save(&path).await;
+        info!("generated {}. please tweak it as needed", path.display());
         editor::open(path).await;
     }
 

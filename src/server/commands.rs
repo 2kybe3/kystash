@@ -8,6 +8,7 @@ use clap::Subcommand;
 #[derive(Debug, Subcommand)]
 pub enum ServerCommands {
     Launch,
+    Edit,
     GenerateClientConfig {
         #[arg(short, long)]
         name: String,

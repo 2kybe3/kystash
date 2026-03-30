@@ -3,14 +3,14 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use tokio::process::Command;
 
-pub async fn open(path: PathBuf) {
+pub async fn open(path: impl AsRef<Path>) {
     let env = std::env::var("EDITOR").ok().unwrap_or("vim".to_string());
     Command::new(env)
-        .arg(path.into_os_string())
+        .arg(path.as_ref().as_os_str())
         .status()
         .await
         .ok();

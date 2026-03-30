@@ -18,6 +18,7 @@ mod webserver;
 pub async fn handle(command: &ServerCommands, server_config: Option<PathBuf>) {
     match command {
         ServerCommands::Launch => run(server_config).await,
+        ServerCommands::Edit => config::server::edit(server_config).await,
         ServerCommands::GenerateServerConfig { stdout } => {
             config::server::generate_server_cfg(*stdout, server_config).await
         }

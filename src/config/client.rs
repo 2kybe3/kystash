@@ -3,7 +3,11 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, path::PathBuf, process::exit};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 use crate::{
     config::{
@@ -13,10 +17,11 @@ use crate::{
     error, sha,
 };
 use base64::{Engine, engine::general_purpose};
+use chrono::Utc;
 use rand::distr::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
 };
@@ -63,7 +68,7 @@ impl ClientConfig {
         }
     }
 
-    pub async fn save(&self, path: PathBuf) {
+    pub async fn save(&self, path: impl AsRef<Path>) {
         let mut file = match OpenOptions::new()
             .write(true)
             .create(true)
@@ -84,7 +89,7 @@ impl ClientConfig {
         };
     }
 
-    pub async fn load(path: PathBuf) -> Self {
+    pub async fn load(path: impl AsRef<Path>) -> Self {
         let mut file = match File::open(path).await {
             Ok(v) => v,
             Err(e) => {
@@ -155,7 +160,7 @@ impl Server {
 
         if let Some(token_file) = &self.token_file {
             let path = PathBuf::from(token_file);
-            let mut file = match OpenOptions::new().read(true).open(path.clone()).await {
+            let mut file = match OpenOptions::new().read(true).open(&path).await {
                 Ok(v) => v,
                 Err(e) => {
                     error!(error = ?e, expected = ?path, server = ?self.server, "token_file not found");
@@ -188,7 +193,7 @@ impl Server {
 
             String::from_utf8_lossy(&res.stdout).to_string()
         } else if let Some(token) = &self.token {
-            token.clone()
+            token.to_owned()
         } else {
             unreachable!()
         }
@@ -197,18 +202,36 @@ impl Server {
 
 pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path: Option<PathBuf>) {
     let server_path = server_config_path.unwrap_or(ServerConfig::default_path().await);
-    let mut server_cfg = {
-        if !server_path.exists() {
-            error!(
-                "{} doesn't exist. please make sure to first generate a server config",
-                server_path.clone().as_path().display().to_string()
-            )
-        }
+    let server_path_display = server_path.display();
 
-        let server_config = server::get_server_cfg(server_path.clone()).await;
-        debug!("server config (pre): {server_config:?}");
-        server_config
-    };
+    if server_path.exists() {
+        let tmp_dir = std::env::temp_dir();
+        let timestamp = Utc::now().format("%Y%m%d%H%M%S");
+        let backup_path = tmp_dir.join(format!(
+            "{}.{}.bak",
+            server_path
+                .file_name()
+                .unwrap_or_else(|| std::ffi::OsStr::new("server.toml"))
+                .to_string_lossy(),
+            timestamp
+        ));
+
+        if let Err(e) = fs::copy(&server_path, &backup_path).await {
+            error!("Failed to backup server config: {}", e);
+            exit(1);
+        } else {
+            info!("Server config backed up to {}", backup_path.display());
+        }
+    } else {
+        error!(
+            "{} doesn't exist. please make sure to first generate a server config",
+            server_path_display
+        );
+        exit(1);
+    }
+
+    let mut server_cfg = server::get_server_cfg(&server_path).await;
+    debug!("server config (pre): {server_cfg:?}");
 
     let raw_pass = get_random_pass();
     let hashed_pass = sha::sha256(&raw_pass);
@@ -217,10 +240,19 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path
         error!("Server config already has a client {name}. Use --overwrite to ignore");
         return;
     }
-    server_cfg.add_client(name, ClientSettings::new(&hashed_pass));
-    debug!("server config (post): {server_cfg:?}");
 
-    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), raw_pass.clone());
+    server_cfg.add_client(name, ClientSettings::new(&hashed_pass));
+    server_cfg.save(&server_path).await;
+    debug!("server config (post): {server_cfg:?}");
+    info!(
+        "Added {name} to {}. writing client config to stdout",
+        server_path_display
+    );
+
+    info!("Run kystash edit to edit the client config");
+    info!("Run kystash server edit to edit the server config");
+
+    let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), raw_pass);
     let client_cfg_str = match toml::to_string_pretty(&client_cfg) {
         Ok(v) => v,
         Err(e) => {
@@ -228,10 +260,6 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path
             crate::error::fatal_error();
         }
     };
-
-    server_cfg.save(server_path).await;
-
-    info!("run kystash edit to edit the client config");
 
     print!("{client_cfg_str}");
 }
