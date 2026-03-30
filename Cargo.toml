@@ -4,12 +4,13 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+derive_more = { version = "2.1", features = ["debug"] }
 reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.50", features = ["full"] }
 clap = { version = "4.6", features = ["derive"] }
 tracing-subscriber = "0.3"
-futures-util = "0.3.32"
+futures-util = "0.3"
 actix-web = "4.13"
 dirs-next = "2.0"
 tracing = "0.1"

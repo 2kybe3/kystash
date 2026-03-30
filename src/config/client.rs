@@ -109,11 +109,12 @@ impl ClientConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, derive_more::Debug, Clone)]
 pub struct Server {
     // The URL used to reach the server
     server: String,
     // Token used to authenticate with the server
+    #[debug("CENSORED")]
     token: Option<String>,
     // A command to run to get the token to authenticate with the server
     token_cmd: Option<String>,

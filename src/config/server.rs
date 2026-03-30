@@ -22,7 +22,7 @@ const CONFIG_WARN: &str = r"# THIS CONFIG FILE IS GENERATED.
 
 ";
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ServerConfig {
     ip: String,
     port: u16,
@@ -126,7 +126,7 @@ impl ServerConfig {
         let res: Vec<_> = self
             .clients
             .iter()
-            .filter(|s| s.1.public_key.eq(&hashed))
+            .filter(|s| s.1.shared_secret.eq(&hashed))
             .collect();
         if res.len() > 1 {
             warn!("multiple clients share the same hashed key");
@@ -158,15 +158,16 @@ impl ServerConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, derive_more::Debug, Clone)]
 pub struct ClientSettings {
-    pub public_key: String,
+    #[debug("CENSORED")]
+    pub shared_secret: String,
 }
 
 impl ClientSettings {
     pub fn new(key: &str) -> Self {
         Self {
-            public_key: key.into(),
+            shared_secret: key.into(),
         }
     }
 }
