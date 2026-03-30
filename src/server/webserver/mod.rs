@@ -5,36 +5,22 @@
 
 use std::sync::Arc;
 
-use actix_web::{App, HttpMessage, HttpResponse, HttpServer, Responder, get, http::header, web};
+use actix_web::{App, HttpServer, web};
 use tracing::{error, info};
 
 use crate::{
     config::server::ServerConfig,
     server::{
         WebserverState,
-        webserver::middleware::auth::{Auth, AuthClient},
+        webserver::{
+            middleware::auth::Auth,
+            routes::{authorized, root},
+        },
     },
 };
 
 mod middleware;
-
-#[get("/")]
-async fn hello(data: web::Data<WebserverState>) -> impl Responder {
-    HttpResponse::PermanentRedirect()
-        .insert_header((header::LOCATION, data.cfg.webserver_root_redirect()))
-        .finish()
-}
-
-#[get("/authorized")]
-async fn authorized(req: actix_web::HttpRequest) -> impl Responder {
-    let user = match req.extensions().get::<AuthClient>().cloned() {
-        Some(v) => v,
-        None => return HttpResponse::InternalServerError().finish(),
-    };
-
-    info!("{} authorized with settings {:?}", user.name, user.settings);
-    HttpResponse::Ok().finish()
-}
+mod routes;
 
 pub async fn start(cfg: ServerConfig) {
     let cfg = Arc::new(cfg);
@@ -46,9 +32,9 @@ pub async fn start(cfg: ServerConfig) {
             .app_data(web::Data::new(WebserverState {
                 cfg: Arc::clone(&value),
             }))
-            .service(hello)
+            .service(root::root)
             .wrap(auth.clone())
-            .service(authorized)
+            .service(authorized::authorized)
     })
     .bind(cfg.get_bind())
     {
