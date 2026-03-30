@@ -14,7 +14,7 @@ use crate::{
         WebserverState,
         webserver::{
             middleware::auth::Auth,
-            routes::{authorized, root},
+            routes::{authorized, root, upload},
         },
     },
 };
@@ -33,6 +33,7 @@ pub async fn start(cfg: ServerConfig) {
                 cfg: Arc::clone(&value),
             }))
             .service(root::root)
+            .service(upload::chunk::chunk)
             .wrap(auth.clone())
             .service(authorized::authorized)
     })

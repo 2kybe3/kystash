@@ -16,6 +16,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 const CONFIG_WARN: &str = r"# THIS CONFIG FILE IS GENERATED.
 # PLEASE DO NOT ADD COMMENTS.
@@ -164,6 +165,9 @@ impl ServerConfig {
 
 #[derive(Serialize, Deserialize, derive_more::Debug, Clone)]
 pub struct ClientSettings {
+    // This is used to figure out where to store uploads (two clients could share a folder)
+    pub folder_id: Uuid,
+    // The hashed token of the client used for auth
     #[debug("CENSORED")]
     pub shared_secret: String,
 }
@@ -171,6 +175,7 @@ pub struct ClientSettings {
 impl ClientSettings {
     pub fn new(key: &str) -> Self {
         Self {
+            folder_id: Uuid::now_v7(),
             shared_secret: key.into(),
         }
     }

@@ -28,10 +28,10 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
     debug: bool,
 
-    #[arg(short, long, global = true, value_name = "FILE")]
-    pub client_config: Option<PathBuf>,
+    #[arg(long, global = true, value_name = "FILE")]
+    client_config: Option<PathBuf>,
 
-    #[arg(short, long, global = true, value_name = "FILE")]
+    #[arg(long, global = true, value_name = "FILE")]
     server_config: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -45,14 +45,26 @@ pub enum Commands {
         command: server::commands::ServerCommands,
     },
     Edit,
+    Upload {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        #[arg(short, long)]
+        server: Option<String>,
+    },
     CheckServer {
-        #[arg(long)]
+        #[arg(short, long)]
         server: Option<String>,
     },
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    #[cfg(not(unix))]
+    compile_error!(
+        "This project only supports Unix-like systems. Contributions for other platforms are welcome."
+    );
+
     let cli = Cli::parse();
     logging::tracing_init(cli.debug);
     debug!("{cli:?}");
@@ -61,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Server { ref command } => server::handle(command, cli.server_config).await,
         Commands::CheckServer { server } => client::check_server(cli.client_config, server).await,
         Commands::Edit => client::edit(cli.client_config).await,
+        Commands::Upload { file, server } => client::upload(cli.client_config, server, file).await,
     };
 
     Ok(())
