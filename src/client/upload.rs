@@ -80,55 +80,47 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
 async fn upload_file_concurrent(
     file: &mut File,
     upload_id: &str,
-    upload_url: &str,
+    server_url: &str,
     token: &str,
     concurrency: usize,
 ) -> anyhow::Result<()> {
-    let client = Client::new();
-    let file_size = file.metadata().await?.len();
+    let client = Arc::new(Client::new());
+    let upload_id = Arc::new(upload_id.to_string());
+    let upload_url = Arc::new(format!("{server_url}/upload/chunk"));
+    let token = Arc::new(token.to_string());
 
+    let file_size = file.metadata().await?.len();
     let chunk_size = 256 * 1024;
     let semaphore = Arc::new(Semaphore::new(concurrency));
 
+    let mut futures = Vec::new();
     let mut offset = 0u64;
-    let mut handles = Vec::new();
 
     while offset < file_size {
         let permit = semaphore.clone().acquire_owned().await?;
-        let token = token.to_string();
         let client = client.clone();
-        let server_url = upload_url.to_string();
         let upload_id = upload_id.to_string();
+        let upload_url = upload_url.to_string();
+        let token = token.to_string();
         let file = file.try_clone().await?;
 
         let this_offset = offset;
         let this_chunk_size = std::cmp::min(chunk_size as u64, file_size - this_offset) as usize;
 
-        let handle = tokio::spawn(async move {
+        let fut = tokio::spawn(async move {
             let file = file.into_std().await;
 
-            let buf = match tokio::task::spawn_blocking(move || {
+            let buf = tokio::task::spawn_blocking(move || {
                 let mut buf = vec![0u8; this_chunk_size];
                 file.read_at(&mut buf, this_offset)?;
                 Ok::<std::vec::Vec<u8>, anyhow::Error>(buf)
             })
-            .await
-            {
-                Ok(Ok(v)) => v,
-                Ok(Err(e)) => {
-                    error!("{e}");
-                    crate::error::fatal_error();
-                }
-                Err(e) => {
-                    error!("{e}");
-                    crate::error::fatal_error();
-                }
-            };
+            .await??;
 
             let resp = client
-                .post(format!("{server_url}/upload/chunk"))
+                .post(upload_url)
                 .bearer_auth(token)
-                .header("Upload-ID", &upload_id)
+                .header("Upload-ID", upload_id)
                 .header("Offset", this_offset)
                 .body(buf)
                 .send()
@@ -147,12 +139,12 @@ async fn upload_file_concurrent(
             Ok(())
         });
 
-        handles.push(handle);
+        futures.push(fut);
         offset += this_chunk_size as u64;
     }
 
-    for h in handles {
-        h.await??;
+    for f in futures {
+        f.await??;
     }
 
     Ok(())
