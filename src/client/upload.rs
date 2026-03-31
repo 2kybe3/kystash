@@ -4,10 +4,10 @@
  */
 
 use reqwest::Client;
-use std::{fs, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
+use std::{fs, io::SeekFrom, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
-    io::AsyncReadExt,
+    io::{AsyncReadExt, AsyncSeekExt},
     sync::Semaphore,
 };
 use tracing::{error, info};
@@ -159,8 +159,10 @@ async fn upload_file_concurrent(
 }
 
 async fn get_upload_id(file: &mut File) -> anyhow::Result<String> {
+    file.seek(SeekFrom::Start(0)).await?;
+
     let mut hasher = xxh3::Xxh3Builder::new().build();
-    let mut buf = [0u8; 8 * 1024];
+    let mut buf = [0u8; 64 * 1024];
 
     loop {
         let n = file.read(&mut buf).await?;
