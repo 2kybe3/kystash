@@ -42,9 +42,7 @@
       in
       {
         packages = rec {
-          kystash = craneLib.buildPackage {
-            src = craneLib.cleanCargoSource ./.;
-          };
+          inherit kystash;
           default = kystash;
         };
         apps.default = {
