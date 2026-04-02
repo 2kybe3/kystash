@@ -94,6 +94,8 @@ async fn upload_file_concurrent(
     let semaphore = Arc::new(Semaphore::new(concurrency));
 
     let mut futures = Vec::new();
+    let total_chunks = file_size.div_ceil(chunk_size as u64) as usize;
+    let mut current_chunk_index = 0;
     let mut offset = 0u64;
 
     while offset < file_size {
@@ -106,7 +108,9 @@ async fn upload_file_concurrent(
 
         let this_offset = offset;
         let this_chunk_size = std::cmp::min(chunk_size as u64, file_size - this_offset) as usize;
+        current_chunk_index += 1;
 
+        let current_chunk_index = current_chunk_index;
         let fut = tokio::spawn(async move {
             let file = file.into_std().await;
 
@@ -117,11 +121,14 @@ async fn upload_file_concurrent(
             })
             .await??;
 
+            info!("{upload_id} {current_chunk_index}/{total_chunks} @ {chunk_size}");
             let resp = client
                 .post(upload_url)
                 .bearer_auth(token)
                 .header("Upload-ID", upload_id)
-                .header("Offset", this_offset)
+                .header("Total-Chunks", total_chunks)
+                .header("Current-Chunk", current_chunk_index)
+                .header("Chunk-Size", this_chunk_size)
                 .body(buf)
                 .send()
                 .await?;

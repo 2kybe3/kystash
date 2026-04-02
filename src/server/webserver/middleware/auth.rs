@@ -66,7 +66,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let header = req
             .headers()
-            .get("authorization")
+            .get("Authorization")
             .map(|v| v.to_str().ok().unwrap_or_default().to_owned())
             .unwrap_or_default();
         let res = auth(header, &self.cfg);

@@ -3,9 +3,10 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{App, HttpServer, web};
+use tokio::sync::Mutex;
 use tracing::{error, info};
 
 use crate::{
@@ -27,13 +28,16 @@ pub async fn start(cfg: ServerConfig) {
 
     let value = Arc::clone(&cfg);
     let auth = Auth::new(Arc::clone(&value));
+    let chunk_map = Arc::new(Mutex::new(HashMap::new()));
     let server = match HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(WebserverState {
                 cfg: Arc::clone(&value),
+                chunk_map: Arc::clone(&chunk_map),
             }))
             .service(root::root)
             .service(upload::chunk::chunk)
+            .service(upload::status::status)
             .wrap(auth.clone())
             .service(authorized::authorized)
     })

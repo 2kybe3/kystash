@@ -3,8 +3,9 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::{
@@ -28,8 +29,11 @@ pub async fn handle(command: &ServerCommands, server_config: Option<PathBuf>) {
     };
 }
 
+type ChunkMap = HashMap<(String, String), bitvec::vec::BitVec>;
+
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,
+    pub chunk_map: Arc<Mutex<ChunkMap>>,
 }
 
 async fn run(server_config: Option<PathBuf>) {
