@@ -128,7 +128,7 @@ async fn upload_file_concurrent(
                 .header("Upload-ID", upload_id)
                 .header("Total-Chunks", total_chunks)
                 .header("Current-Chunk", current_chunk_index)
-                .header("Chunk-Size", this_chunk_size)
+                .header("Chunk-Size", chunk_size)
                 .body(buf)
                 .send()
                 .await?;
