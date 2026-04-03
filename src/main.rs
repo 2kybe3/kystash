@@ -28,6 +28,9 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
     debug: bool,
 
+    #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
+    trace: bool,
+
     #[arg(long, global = true, value_name = "FILE")]
     client_config: Option<PathBuf>,
 
@@ -66,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let cli = Cli::parse();
-    logging::tracing_init(cli.debug);
+    logging::tracing_init(cli.trace, cli.debug);
     debug!("{cli:?}");
 
     match cli.command {

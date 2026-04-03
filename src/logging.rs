@@ -4,26 +4,43 @@
  */
 
 use std::io;
-use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
-pub fn tracing_init(debug: bool) {
-    if debug || cfg!(debug_assertions) {
-        tracing_subscriber::fmt()
-            .with_max_level(if debug {
-                LevelFilter::DEBUG
-            } else {
-                LevelFilter::INFO
-            })
-            .with_writer(io::stderr)
+use crate::error;
+
+pub fn tracing_init(trace: bool, debug: bool) {
+    let level = if trace {
+        "trace"
+    } else if debug {
+        "debug"
+    } else {
+        "info"
+    };
+
+    let def = match format!("kystash={level}").parse() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("An error ocured setting up the logger. how ironic: {e}");
+            error::fatal_error();
+        }
+    };
+
+    let env = EnvFilter::builder()
+        .with_default_directive(def)
+        .from_env_lossy();
+
+    let shared = tracing_subscriber::fmt()
+        .with_env_filter(env)
+        .with_writer(io::stderr);
+
+    if trace || debug || cfg!(debug_assertions) {
+        shared
             .with_thread_ids(true)
             .with_file(true)
             .with_line_number(true)
             .with_target(true)
             .init();
     } else {
-        tracing_subscriber::fmt()
-            .with_writer(io::stderr)
-            .with_target(false)
-            .init();
+        shared.with_target(false).init();
     }
 }
