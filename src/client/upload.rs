@@ -3,7 +3,9 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use reqwest::Client;
+use anyhow::bail;
+use bitvec::vec::BitVec;
+use reqwest::{Client, StatusCode};
 use std::{fs, io::SeekFrom, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
@@ -68,35 +70,69 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     );
     let auth = server_cfg.auth().await;
 
-    // dbg!(
-    //     get_upload_status(&upload_id, server_cfg.server(), &auth)
-    //         .await
-    //         .ok()
-    // );
+    let (client, bv) = match get_upload_status(&upload_id, server_cfg.server(), &auth).await {
+        Ok(v) => v,
+        Err(e) => {
+            error!("error checking upload status: {e}");
+            crate::error::fatal_error();
+        }
+    };
+
+    info!("{bv:?}");
 
     if let Err(e) =
-        upload_file_concurrent(&mut file, &upload_id, server_cfg.server(), &auth, 6).await
+        upload_file_concurrent(client, bv, file, &upload_id, server_cfg.server(), &auth, 6).await
     {
         error!("error uploading file: {e}");
         crate::error::fatal_error();
     }
 }
 
-// async fn get_upload_status(upload_id: &str, server_url: &str, token: &str) -> anyhow::Result<()> {
-//     Ok(())
-// }
+async fn get_upload_status(
+    upload_id: &str,
+    server_url: &str,
+    token: &str,
+) -> anyhow::Result<(reqwest::Client, Option<BitVec>)> {
+    let client = Client::new();
+
+    let resp = client
+        .get(format!("{server_url}/upload/status"))
+        .bearer_auth(token)
+        .header("Upload-ID", upload_id)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    if status != StatusCode::NOT_FOUND && status != StatusCode::FOUND {
+        bail!("server returned invalid status code {status}")
+    } else if status == StatusCode::NOT_FOUND {
+        return Ok((client, None));
+    }
+
+    let text = resp.text().await?;
+
+    let mut bv = BitVec::repeat(false, text.chars().count());
+    for (i, c) in text.char_indices() {
+        bv.set(i, c == '1');
+    }
+
+    Ok((client, Some(bv)))
+}
 
 async fn upload_file_concurrent(
-    file: &mut File,
+    client: reqwest::Client,
+    done: Option<BitVec>,
+    file: File,
     upload_id: &str,
     server_url: &str,
     token: &str,
     concurrency: usize,
 ) -> anyhow::Result<()> {
-    let client = Arc::new(Client::new());
+    let client = Arc::new(client);
     let upload_id = Arc::new(upload_id.to_string());
     let upload_url = Arc::new(format!("{server_url}/upload/chunk"));
     let token = Arc::new(token.to_string());
+    let done = done.map(Arc::new);
 
     let file_size = file.metadata().await?.len();
     let chunk_size = 256 * 1024;
@@ -118,6 +154,14 @@ async fn upload_file_concurrent(
 
         let this_offset = offset;
         let this_chunk_size = std::cmp::min(chunk_size as u64, file_size - this_offset) as usize;
+
+        if let Some(ref bv) = done
+            && bv.get(current_chunk_index).map(|v| *v).unwrap_or(false)
+        {
+            offset += this_chunk_size as u64;
+            current_chunk_index += 1;
+            continue;
+        }
 
         let fut = tokio::spawn(async move {
             let _permit = permit;
