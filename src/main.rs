@@ -17,6 +17,7 @@ pub mod error;
 mod logging;
 mod server;
 pub mod sha;
+pub mod utils;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -31,6 +32,8 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
     trace: bool,
 
+    // #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
+    // version: bool,
     #[arg(long, global = true, value_name = "FILE")]
     client_config: Option<PathBuf>,
 
@@ -65,17 +68,21 @@ pub enum Commands {
 async fn main() -> anyhow::Result<()> {
     #[cfg(not(unix))]
     compile_error!(
-        "This project only supports Unix-like systems. Contributions for other platforms are welcome."
+        "This project only supports Unix-like systems (the main reasons are the missing write_at and read_at functions). Contributions for other platforms are welcome."
     );
 
     let cli = Cli::parse();
     logging::tracing_init(cli.trace, cli.debug);
+
     debug!("{cli:?}");
 
     match cli.command {
+        // Server Commands
         Commands::Server { ref command } => server::handle(command, cli.server_config).await,
-        Commands::CheckServer { server } => client::check_server(cli.client_config, server).await,
+
+        // Client Commands
         Commands::Edit => client::edit(cli.client_config).await,
+        Commands::CheckServer { server } => client::check_server(cli.client_config, server).await,
         Commands::Upload { file, server } => client::upload(cli.client_config, server, file).await,
     };
 

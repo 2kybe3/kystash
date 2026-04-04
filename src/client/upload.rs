@@ -235,6 +235,8 @@ async fn upload_file_concurrent(
                     }
                     continue;
                 }
+
+                break;
             }
 
             debug!(
@@ -269,5 +271,5 @@ async fn get_upload_id(file: &mut File) -> anyhow::Result<String> {
         hasher.update(&buf[..n]);
     }
 
-    Ok(format!("{:x}", hasher.digest()))
+    Ok(format!("{:016x}", hasher.digest()))
 }

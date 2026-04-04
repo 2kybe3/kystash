@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     config::{
-        server::{self, ClientSettings, ServerConfig},
+        server::{self, ClientSettings},
         shared::get_root_config_path,
     },
     error, sha,
@@ -33,14 +33,6 @@ pub struct ClientConfig {
 }
 
 impl ClientConfig {
-    pub fn has_server(&self, name: &str) -> bool {
-        self.get_server(name).is_some()
-    }
-
-    pub fn get_server(&self, name: &str) -> Option<&Server> {
-        self.servers.get(name)
-    }
-
     pub fn new(server: String, token: String) -> Self {
         let mut servers = HashMap::new();
         servers.insert("default".into(), Server::new(server, token));
@@ -59,58 +51,56 @@ impl ClientConfig {
     }
 
     pub fn to_toml(&self) -> String {
-        match toml::to_string_pretty(self) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("{e}");
-                crate::error::fatal_error();
-            }
-        }
+        toml::to_string_pretty(self).unwrap_or_else(|e| {
+            error!("{e}");
+            crate::error::fatal_error();
+        })
     }
 
     pub async fn save(&self, path: impl AsRef<Path>) {
-        let mut file = match OpenOptions::new()
+        let mut file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(path)
             .await
-        {
-            Ok(v) => v,
-            Err(e) => {
+            .unwrap_or_else(|e| {
                 error!("{e}");
                 crate::error::fatal_error();
-            }
-        };
+            });
 
-        if let Err(e) = file.write_all(self.to_toml().as_bytes()).await {
-            error!("{e}");
-            crate::error::fatal_error();
-        };
+        file.write_all(self.to_toml().as_bytes())
+            .await
+            .unwrap_or_else(|e| {
+                error!("{e}");
+                crate::error::fatal_error();
+            })
     }
 
     pub async fn load(path: impl AsRef<Path>) -> Self {
-        let mut file = match File::open(path).await {
-            Ok(v) => v,
-            Err(e) => {
-                error!("{e}");
-                crate::error::fatal_error();
-            }
-        };
-
-        let mut str = String::new();
-        if let Err(e) = file.read_to_string(&mut str).await {
+        let mut file = File::open(path).await.unwrap_or_else(|e| {
             error!("{e}");
             crate::error::fatal_error();
-        };
+        });
 
-        match toml::from_str(&str) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("invalid client config: {e}");
-                crate::error::fatal_error();
-            }
-        }
+        let mut str = String::new();
+        file.read_to_string(&mut str).await.unwrap_or_else(|e| {
+            error!("{e}");
+            crate::error::fatal_error();
+        });
+
+        toml::from_str(&str).unwrap_or_else(|e| {
+            error!("invalid client config: {e}");
+            crate::error::fatal_error();
+        })
+    }
+
+    pub fn has_server(&self, name: &str) -> bool {
+        self.get_server(name).is_some()
+    }
+
+    pub fn get_server(&self, name: &str) -> Option<&Server> {
+        self.servers.get(name)
     }
 }
 
@@ -160,74 +150,68 @@ impl Server {
 
         if let Some(token_file) = &self.token_file {
             let path = PathBuf::from(token_file);
-            let mut file = match OpenOptions::new().read(true).open(&path).await {
-                Ok(v) => v,
-                Err(e) => {
+            let mut file = OpenOptions::new().read(true).open(&path).await.unwrap_or_else(|e|  {
                     error!(error = ?e, expected = ?path, server = ?self.server, "token_file not found");
                     exit(1);
-                }
-            };
+            });
             let mut buffer = String::new();
-            if let Err(e) = file.read_to_string(&mut buffer).await {
+            file.read_to_string(&mut buffer).await.unwrap_or_else(|e| {
                 error!("{e}");
                 crate::error::fatal_error();
-            }
+            });
             buffer
         } else if let Some(token_cmd) = &self.token_cmd {
             let mut parts = token_cmd.split_whitespace();
 
-            let program = match parts.next() {
-                Some(v) => v,
-                None => {
-                    error::fatal_error();
-                }
-            };
+            let program = parts.next().unwrap_or_else(|| error::fatal_error());
 
-            let res = match Command::new(program).args(parts).output().await {
-                Ok(v) => v,
-                Err(e) => {
+            let res = Command::new(program)
+                .args(parts)
+                .output()
+                .await
+                .unwrap_or_else(|e| {
                     error!("{e}");
                     error::fatal_error();
-                }
-            };
+                });
 
             String::from_utf8_lossy(&res.stdout).to_string()
         } else if let Some(token) = &self.token {
             token.to_owned()
         } else {
-            unreachable!()
+            error::fatal_error();
         }
     }
 }
 
-pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path: Option<PathBuf>) {
-    let server_path = server_config_path.unwrap_or(ServerConfig::default_path().await);
+pub async fn generate_client_cfg(name: &str, overwrite: bool, server_path: impl AsRef<Path>) {
+    let server_path = server_path.as_ref();
     let server_path_display = server_path.display();
 
-    if server_path.exists() {
-        let tmp_dir = std::env::temp_dir();
-        let timestamp = Utc::now().format("%Y%m%d%H%M%S");
-        let backup_path = tmp_dir.join(format!(
-            "{}.{}.bak",
-            server_path
-                .file_name()
-                .unwrap_or_else(|| std::ffi::OsStr::new("server.toml"))
-                .to_string_lossy(),
-            timestamp
-        ));
-
-        if let Err(e) = fs::copy(&server_path, &backup_path).await {
-            error!("Failed to backup server config: {}", e);
-            exit(1);
-        } else {
-            info!("Server config backed up to {}", backup_path.display());
-        }
-    } else {
+    if !server_path.exists() {
         error!(
             "{} doesn't exist. please make sure to first generate a server config",
             server_path_display
         );
         exit(1);
+    }
+
+    let tmp_dir = std::env::temp_dir();
+    let timestamp = Utc::now().format("%Y%m%d%H%M%S");
+    let backup_path = tmp_dir.join(format!(
+        "{}.{}.bak",
+        server_path
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("server.toml"))
+            .to_string_lossy(),
+        timestamp
+    ));
+
+    match fs::copy(&server_path, &backup_path).await {
+        Ok(_) => info!("Server config backed up to {}", backup_path.display()),
+        Err(e) => {
+            error!("Failed to backup server config: {}", e);
+            exit(1);
+        }
     }
 
     let mut server_cfg = server::get_server_cfg(&server_path).await;
@@ -253,26 +237,17 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_config_path
     info!("Run kystash server edit to edit the server config");
 
     let client_cfg = ClientConfig::new(server_cfg.hostname().to_string(), raw_pass);
-    let client_cfg_str = match toml::to_string_pretty(&client_cfg) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("{e}");
-            crate::error::fatal_error();
-        }
-    };
+    let client_cfg_str = client_cfg.to_toml();
 
     print!("{client_cfg_str}");
 }
 
 fn get_random_pass() -> String {
     let mut rng = rand::rng();
-    let dist = match Uniform::new_inclusive(b'(', b'~') {
-        Ok(v) => v,
-        Err(e) => {
-            error!("{e}");
-            crate::error::fatal_error();
-        }
-    };
+    let dist = Uniform::new_inclusive(b'(', b'~').unwrap_or_else(|e| {
+        error!("{e}");
+        crate::error::fatal_error();
+    });
 
     (0..256).map(|_| dist.sample(&mut rng) as char).collect()
 }
