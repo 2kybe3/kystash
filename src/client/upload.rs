@@ -23,13 +23,10 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     let server_name = server.unwrap_or("default".to_string());
     let path = client_config.unwrap_or(ClientConfig::default_path().await);
     let cfg = ClientConfig::load(path).await;
-    let server_cfg = match cfg.get_server(&server_name) {
-        Some(v) => v,
-        None => {
-            error!("{server_name} isn't in the cfg");
-            exit(2);
-        }
-    };
+    let server_cfg = cfg.get_server(&server_name).unwrap_or_else(|| {
+        error!("{server_name} isn't in the cfg");
+        exit(1);
+    });
 
     match fs::exists(&file_path) {
         Ok(true) => {}
@@ -42,27 +39,22 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
             crate::error::fatal_error();
         }
     }
-    let mut file = match OpenOptions::new()
+
+    let mut file = OpenOptions::new()
         .read(true)
         .write(false)
         .open(&file_path)
         .await
-    {
-        Ok(v) => v,
-        Err(e) => {
+        .unwrap_or_else(|e| {
             error!("failed to open file: {e}");
             crate::error::fatal_error();
-        }
-    };
+        });
 
     info!("getting upload id this might take a while");
-    let upload_id = match get_upload_id(&mut file).await {
-        Ok(v) => v,
-        Err(e) => {
-            error!("error processing file: {e}");
-            crate::error::fatal_error();
-        }
-    };
+    let upload_id = get_upload_id(&mut file).await.unwrap_or_else(|e| {
+        error!("error processing file: {e}");
+        crate::error::fatal_error();
+    });
 
     info!(
         "Starting upload with id: {upload_id} file: {}",
@@ -70,22 +62,21 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     );
     let auth = server_cfg.auth().await;
 
-    let (client, bv) = match get_upload_status(&upload_id, server_cfg.server(), &auth).await {
-        Ok(v) => v,
-        Err(e) => {
+    let (client, bv) = get_upload_status(&upload_id, server_cfg.server(), &auth)
+        .await
+        .unwrap_or_else(|e| {
             error!("error checking upload status: {e}");
             crate::error::fatal_error();
-        }
-    };
+        });
 
     info!("{bv:?}");
 
-    if let Err(e) =
-        upload_file_concurrent(client, bv, file, &upload_id, server_cfg.server(), &auth, 6).await
-    {
-        error!("error uploading file: {e}");
-        crate::error::fatal_error();
-    }
+    upload_file_concurrent(client, bv, file, &upload_id, server_cfg.server(), &auth, 6)
+        .await
+        .unwrap_or_else(|e| {
+            error!("error uploading file: {e}");
+            crate::error::fatal_error();
+        })
 }
 
 async fn get_upload_status(
@@ -211,7 +202,7 @@ async fn upload_file_concurrent(
                         );
                         if i == MAX_UPLOAD_ATTEMPT_PER_CHUNK - 1 {
                             error!("{}", msg);
-                            exit(2);
+                            exit(1);
                         } else {
                             warn!("{}", msg);
                         }
@@ -229,7 +220,7 @@ async fn upload_file_concurrent(
                     );
                     if i == MAX_UPLOAD_ATTEMPT_PER_CHUNK - 1 {
                         error!("{}", msg);
-                        exit(2);
+                        exit(1);
                     } else {
                         warn!("{}", msg);
                     }

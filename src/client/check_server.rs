@@ -17,7 +17,7 @@ pub async fn check_server(client_config: Option<PathBuf>, server: Option<String>
         Some(v) => v,
         None => {
             error!("{server_name} isn't in the cfg");
-            exit(2);
+            exit(1);
         }
     };
 
