@@ -90,6 +90,7 @@ where
 
 #[derive(Clone, Debug)]
 pub struct AuthClient {
+    #[allow(unused)]
     pub name: String,
     pub settings: ClientSettings,
 }

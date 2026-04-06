@@ -1336,6 +1336,7 @@ dependencies = [
  "rand 0.10.0",
  "reqwest",
  "serde",
+ "serde_json",
  "sha2",
  "tokio",
  "toml",

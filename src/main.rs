@@ -17,6 +17,7 @@ pub mod error;
 mod logging;
 mod server;
 pub mod sha;
+pub mod shared;
 pub mod utils;
 
 use clap::{Parser, Subcommand};
@@ -32,8 +33,6 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
     trace: bool,
 
-    // #[arg(short, long, global = true, action = clap::ArgAction::SetTrue)]
-    // version: bool,
     #[arg(long, global = true, value_name = "FILE")]
     client_config: Option<PathBuf>,
 

@@ -15,7 +15,7 @@ use crate::{
         WebserverState,
         webserver::{
             middleware::auth::Auth,
-            routes::{authorized, root, upload},
+            routes::{root, upload, version},
         },
     },
 };
@@ -26,20 +26,20 @@ mod routes;
 pub async fn start(cfg: ServerConfig) {
     let cfg = Arc::new(cfg);
 
-    let value = Arc::clone(&cfg);
-    let auth = Auth::new(Arc::clone(&value));
+    let cfg_clone = Arc::clone(&cfg);
+    let auth = Auth::new(Arc::clone(&cfg_clone));
     let chunk_map = Arc::new(Mutex::new(HashMap::new()));
     let server = match HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(WebserverState {
-                cfg: Arc::clone(&value),
+                cfg: Arc::clone(&cfg_clone),
                 chunk_map: Arc::clone(&chunk_map),
             }))
             .service(root::root)
             .service(upload::chunk::chunk)
             .service(upload::status::status)
             .wrap(auth.clone())
-            .service(authorized::authorized)
+            .service(version::version)
     })
     .bind(cfg.get_bind())
     {
