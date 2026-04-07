@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 use tokio::fs;
-use tracing::{error, info, warn};
+use tracing::{trace, info, warn, error};
 use xxhash_rust::xxh3::xxh3_128;
 
 type MetadataId = usize;
@@ -87,6 +87,7 @@ impl MetadataStore {
     }
 
     pub async fn add_meta_file(&mut self, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        trace!("adding metadata file {} to store", path.as_ref().display());
         let meta = Metadata::load(&path).await?;
         self.get_or_insert(meta)?;
         Ok(())
