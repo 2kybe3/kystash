@@ -16,6 +16,7 @@ use tracing::{debug, error};
 use crate::{
     config::{self, server::ServerConfig},
     server::commands::ServerCommands,
+    shared::UploadIdentity,
     utils,
 };
 
@@ -53,7 +54,7 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
     };
 }
 
-type ChunkMap = HashMap<(String, String), bitvec::vec::BitVec>;
+type ChunkMap = HashMap<UploadIdentity, bitvec::vec::BitVec>;
 
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,

@@ -5,7 +5,10 @@
 
 use actix_web::{HttpMessage, HttpResponse, Responder, get, web};
 
-use crate::server::{WebserverState, webserver::middleware::auth::AuthClient};
+use crate::{
+    server::{WebserverState, webserver::middleware::auth::AuthClient},
+    shared::UploadIdentity,
+};
 
 #[get("/upload/status")]
 pub async fn status(
@@ -22,7 +25,7 @@ pub async fn status(
         None => return HttpResponse::BadRequest().body("Invalid Upload-ID"),
     };
 
-    let id = (user.settings.folder_id.to_string(), upload_id.to_owned());
+    let id = UploadIdentity::new(user.settings.folder_id, upload_id);
     let chunk_map = &web_data.chunk_map;
 
     let bv = chunk_map.lock().await;

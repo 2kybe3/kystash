@@ -9,3 +9,4 @@ pub mod fs;
 pub mod id;
 pub mod logging;
 pub mod sha;
+pub mod tests;

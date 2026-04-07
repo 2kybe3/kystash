@@ -37,6 +37,10 @@ const DEFAULT: &[&str] = &[
     "Exit code: 1",
 ];
 
+pub fn fatal_error_no_exit() {
+    eprint!("{}", pretty_box(DEFAULT));
+}
+
 pub fn fatal_error() -> ! {
     eprint!("{}", pretty_box(DEFAULT));
     exit(1);

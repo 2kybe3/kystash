@@ -3,29 +3,25 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
+pub mod store;
+
 use std::{
     io::{self, SeekFrom},
     path::Path,
 };
 
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio::{
-    fs::File,
-    io::{AsyncReadExt, AsyncSeekExt},
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
 /// How many bytes we are gonna get for magic bytes file mime detection
 const MAGIC_HEADER_SIZE: u64 = 8192;
 
-#[derive(Error, Debug)]
-pub enum MetadataError {
-    #[error("failed to get metadata from file {0}")]
-    IoError(io::Error),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Hash, PartialEq)]
 pub struct Metadata {
     /// A comment for a upload
     comment: Option<String>,
@@ -59,7 +55,7 @@ impl Metadata {
     pub async fn from_path(
         path: impl AsRef<Path>,
         file: Option<&mut File>,
-    ) -> Result<Self, MetadataError> {
+    ) -> Result<Self, io::Error> {
         let path = path.as_ref();
 
         let ext = path
@@ -70,24 +66,48 @@ impl Metadata {
         let file = if let Some(file) = file {
             file
         } else {
-            &mut File::open(&path).await.map_err(MetadataError::IoError)?
+            &mut File::open(&path).await?
         };
 
-        Self::from_file(file, ext).await
+        Self::gen_from_file(file, ext).await
     }
 
-    pub async fn from_file(file: &mut File, ext: Option<String>) -> Result<Self, MetadataError> {
-        let size = file.metadata().await.map_err(MetadataError::IoError)?.len();
+    pub async fn load(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+        let mut buf = Vec::new();
+        OpenOptions::new()
+            .read(true)
+            .open(path)
+            .await?
+            .read_to_end(&mut buf)
+            .await?;
 
-        file.seek(SeekFrom::Start(0))
-            .await
-            .map_err(MetadataError::IoError)?;
+        Ok(serde_json::from_str(&String::from_utf8_lossy(&buf))?)
+    }
+
+    pub async fn save(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        tokio::fs::create_dir_all(
+            path.as_ref()
+                .parent()
+                .ok_or(anyhow!("paren't doesnt exist"))?,
+        )
+        .await?;
+        Ok(OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)
+            .await?
+            .write_all(serde_json::to_string(self)?.as_bytes())
+            .await?)
+    }
+
+    pub async fn gen_from_file(file: &mut File, ext: Option<String>) -> Result<Self, io::Error> {
+        let size = file.metadata().await?.len();
+
+        file.seek(SeekFrom::Start(0)).await?;
         let limit = std::cmp::min(size, MAGIC_HEADER_SIZE) as usize;
         let mut bytes = Vec::with_capacity(limit);
-        file.take(8192)
-            .read_to_end(&mut bytes)
-            .await
-            .map_err(MetadataError::IoError)?;
+        file.take(8192).read_to_end(&mut bytes).await?;
 
         if let Some(mime) = infer::get(&bytes) {
             return Ok(Self::new(
@@ -122,19 +142,19 @@ impl Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::utils;
+    use std::{env::temp_dir, fs, path::PathBuf};
     use tokio::fs::File;
 
-    pub async fn test_asset(file: &str) -> PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("assets")
-            .join("tests")
+    pub fn test_asset(file: &str) -> PathBuf {
+        utils::tests::test_asset_folder()
+            .join("metadata")
             .join(file)
     }
 
     #[tokio::test(name = "metadata_txt")]
     pub async fn metadata_txt() -> anyhow::Result<()> {
-        let path = test_asset("ipsum.txt").await;
+        let path = test_asset("ipsum.txt");
 
         let metadata = Metadata::from_path(&path, None).await?;
 
@@ -146,7 +166,7 @@ mod tests {
 
     #[tokio::test(name = "metadata_png")]
     pub async fn metadata_png() -> anyhow::Result<()> {
-        let path = test_asset("tiny.png").await;
+        let path = test_asset("tiny.png");
 
         let metadata = Metadata::from_path(&path, None).await?;
 
@@ -158,11 +178,11 @@ mod tests {
 
     #[tokio::test(name = "metadata_png_no_ext")]
     pub async fn metadata_png_no_ext() -> anyhow::Result<()> {
-        let path = test_asset("tiny.png").await;
+        let path = test_asset("tiny.png");
 
         let mut file = File::open(&path).await?;
 
-        let metadata = Metadata::from_file(&mut file, None).await?;
+        let metadata = Metadata::gen_from_file(&mut file, None).await?;
 
         assert_eq!(metadata.mime_type, "image/png");
         assert_eq!(metadata.mime_extension, Some("png".to_owned()));
@@ -174,5 +194,20 @@ mod tests {
     pub async fn metadata_default_private() {
         let metadata = Metadata::new("".into(), None, 69);
         assert!(!metadata.is_public);
+    }
+
+    #[tokio::test(name = "metadata-save-and-load")]
+    pub async fn metadata_save_and_load() -> anyhow::Result<()> {
+        let metadata = Metadata::new("".into(), None, 69);
+        let file = temp_dir().join("test.meta");
+        metadata.save(&file).await?;
+
+        assert!(fs::exists(&file)?);
+
+        let new = Metadata::load(file).await?;
+
+        assert_eq!(metadata, new);
+
+        Ok(())
     }
 }

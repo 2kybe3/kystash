@@ -9,7 +9,10 @@ use std::os::unix::fs::FileExt;
 use tokio::fs::OpenOptions;
 use tracing::trace;
 
-use crate::server::{WebserverState, webserver::middleware::auth::AuthClient};
+use crate::{
+    server::{WebserverState, webserver::middleware::auth::AuthClient},
+    shared::UploadIdentity,
+};
 
 struct Headers<'a> {
     upload_id: &'a str,
@@ -81,7 +84,7 @@ pub async fn chunk(
 
     match result {
         Ok(Ok(_)) => {
-            let id = (
+            let id = UploadIdentity::new(
                 user.settings.folder_id.to_string(),
                 headers.upload_id.to_owned(),
             );
@@ -90,7 +93,7 @@ pub async fn chunk(
 
             let mut map = chunk_map.lock().await;
             let bv = map
-                .entry(id.clone())
+                .entry(id)
                 .or_insert_with(|| BitVec::repeat(false, headers.total_chunks));
 
             // TODO: maybe allow total_chunks changes
