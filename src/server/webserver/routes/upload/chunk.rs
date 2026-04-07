@@ -7,7 +7,7 @@ use actix_web::{HttpMessage, HttpResponse, Responder, http::header::HeaderMap, p
 use bitvec::vec::BitVec;
 use std::os::unix::fs::FileExt;
 use tokio::fs::OpenOptions;
-use tracing::debug;
+use tracing::trace;
 
 use crate::server::{WebserverState, webserver::middleware::auth::AuthClient};
 
@@ -20,7 +20,7 @@ struct Headers<'a> {
 
 impl<'a> Headers<'a> {
     fn log_start(&self) {
-        debug!(
+        trace!(
             "{} {}/{} @ {}",
             self.upload_id, self.current_chunk, self.total_chunks, self.chunk_size
         );
@@ -75,8 +75,8 @@ pub async fn chunk(
     };
 
     let data = body.to_vec();
-    let file = file.into_std().await;
 
+    let file = file.into_std().await;
     let result = tokio::task::spawn_blocking(move || file.write_at(&data, offset as u64)).await;
 
     match result {
@@ -93,6 +93,7 @@ pub async fn chunk(
                 .entry(id.clone())
                 .or_insert_with(|| BitVec::repeat(false, headers.total_chunks));
 
+            // TODO: maybe allow total_chunks changes
             bv.set(idx, true);
 
             HttpResponse::Ok().finish()

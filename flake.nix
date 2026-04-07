@@ -24,8 +24,15 @@
       let
         pkgs = import nixpkgs { inherit system; };
         treefmtEval = treefmt-nix.lib.evalModule pkgs ./nix/treefmt.nix;
+
         craneLib = crane.mkLib pkgs;
-        src = craneLib.cleanCargoSource ./.;
+        src = pkgs.lib.cleanSourceWith {
+          filter =
+            path: type:
+            ((craneLib.filterCargoSources path type) || (builtins.match ".*/assets/.*" path != null));
+          src = ./.;
+          name = "source";
+        };
 
         commonArgs = {
           inherit src;

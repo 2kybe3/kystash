@@ -10,10 +10,11 @@ use std::{fs, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
     sync::Semaphore,
+    time::Instant,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
-use crate::{config::client::ClientConfig, utils};
+use crate::{config::client::ClientConfig, shared::metadata::Metadata, utils};
 
 const MAX_UPLOAD_ATTEMPT_PER_CHUNK: u32 = 5;
 
@@ -62,6 +63,8 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     );
     let auth = server_cfg.auth().await;
 
+    let start = Instant::now();
+
     let (client, bv) = get_upload_status(&upload_id, server_cfg.server(), &auth)
         .await
         .unwrap_or_else(|e| {
@@ -69,14 +72,23 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
             utils::error::fatal_error();
         });
 
-    info!("{bv:?}");
+    debug!("got status in {}ms: {bv:?}", start.elapsed().as_millis());
+    let start = Instant::now();
 
     upload_file_concurrent(client, bv, file, &upload_id, server_cfg.server(), &auth, 6)
         .await
         .unwrap_or_else(|e| {
             error!("error uploading file: {e}");
             utils::error::fatal_error();
-        })
+        });
+
+    info!("finished upload in {}ms", start.elapsed().as_millis());
+
+    let metadata = Metadata::from_path(file_path, None).await;
+    info!("{metadata:?}");
+
+    // TODO: set initial metadata for the upload (server should generate a fitting .meta file also
+    // used to know if the upload is finished for gc)
 }
 
 async fn get_upload_status(
@@ -176,7 +188,7 @@ async fn upload_file_concurrent(
                 }
             };
 
-            debug!(
+            trace!(
                 "{upload_id} >> {}/{total_chunks} @ {chunk_size} @ init",
                 current_chunk_index + 1
             );
@@ -230,7 +242,7 @@ async fn upload_file_concurrent(
                 break;
             }
 
-            debug!(
+            trace!(
                 "{upload_id} >> {}/{total_chunks} @ {chunk_size} @ finish",
                 current_chunk_index + 1
             );
