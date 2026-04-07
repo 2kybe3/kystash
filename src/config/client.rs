@@ -102,6 +102,13 @@ impl ClientConfig {
     pub fn get_server(&self, name: &str) -> Option<&Server> {
         self.servers.get(name)
     }
+    pub fn get_server_or_exit<'a>(&self, name: impl Into<Option<&'a str>>) -> &Server {
+        let name = name.into().unwrap_or("default");
+        self.get_server(name).unwrap_or_else(|| {
+            error!("{name} isn't in the cfg");
+            exit(1);
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, derive_more::Debug, Clone)]

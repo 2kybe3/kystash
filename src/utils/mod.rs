@@ -6,5 +6,6 @@
 pub mod editor;
 pub mod error;
 pub mod fs;
+pub mod id;
 pub mod logging;
 pub mod sha;

@@ -6,14 +6,12 @@
 use anyhow::bail;
 use bitvec::vec::BitVec;
 use reqwest::{Client, StatusCode};
-use std::{fs, io::SeekFrom, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
+use std::{fs, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
-    io::{AsyncReadExt, AsyncSeekExt},
     sync::Semaphore,
 };
 use tracing::{debug, error, info, warn};
-use xxhash_rust::xxh3;
 
 use crate::{config::client::ClientConfig, utils};
 
@@ -51,10 +49,12 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         });
 
     info!("getting upload id this might take a while");
-    let upload_id = get_upload_id(&mut file).await.unwrap_or_else(|e| {
-        error!("error processing file: {e}");
-        utils::error::fatal_error();
-    });
+    let upload_id = utils::id::get_upload_id(&mut file)
+        .await
+        .unwrap_or_else(|e| {
+            error!("error processing file: {e}");
+            utils::error::fatal_error();
+        });
 
     info!(
         "Starting upload with id: {upload_id} file: {}",
@@ -246,21 +246,4 @@ async fn upload_file_concurrent(
     }
 
     Ok(())
-}
-
-async fn get_upload_id(file: &mut File) -> anyhow::Result<String> {
-    file.seek(SeekFrom::Start(0)).await?;
-
-    let mut hasher = xxh3::Xxh3Builder::new().build();
-    let mut buf = [0u8; 64 * 1024];
-
-    loop {
-        let n = file.read(&mut buf).await?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-
-    Ok(format!("{:016x}", hasher.digest()))
 }
