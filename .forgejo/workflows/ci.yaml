@@ -1,0 +1,35 @@
+on: [push]
+jobs:
+  lint-and-build:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v6
+      - uses: https://github.com/cachix/install-nix-action@v31
+      - name: Setup Attic
+        run: |
+          nix profile add "nixpkgs#attic-client"
+          attic login main https://attic.kybe.xyz/main ${{ secrets.ATTIC_KEY }}
+          attic use main
+      - name: Build & Checks
+        run: |
+          nix build . --max-jobs 32 -L --no-write-lock-file --accept-flake-config
+          nix flake check . --max-jobs 32 -L --no-write-lock-file --accept-flake-config
+      - name: Push to Attic
+        if: always()
+        run: attic push main --ignore-upstream-cache-filter -j 64 $(ls -d /nix/store/*/)
+  merge-to-main:
+    needs: lint-and-build
+    runs-on: docker
+    if: ${{ success() }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          ssh-key: ${{ secrets.ACTIONS_SSH_KEY }}
+          ssh-known-hosts: 'gitc.kybe.xyz ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMo041C1x0fZwmSwcS0N/fR98x2a5ICq+pxXpy4fTbX4'
+          github-server-url: 'https://gitc.kybe.xyz'
+      - name: Rebase staging onto main
+        run: |
+          git fetch origin staging
+          git rebase origin/staging
+          git push origin HEAD:main
