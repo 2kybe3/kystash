@@ -1,4 +1,7 @@
-on: [push]
+on:
+  push:
+    branches:
+      - staging
 jobs:
   lint-and-build:
     runs-on: docker
