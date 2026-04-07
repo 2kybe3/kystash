@@ -12,11 +12,7 @@
 
 mod client;
 pub mod config;
-pub mod editor;
-pub mod error;
-mod logging;
 mod server;
-pub mod sha;
 pub mod shared;
 pub mod utils;
 
@@ -71,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let cli = Cli::parse();
-    logging::tracing_init(cli.trace, cli.debug);
+    utils::logging::tracing_init(cli.trace, cli.debug);
 
     debug!("{cli:?}");
 

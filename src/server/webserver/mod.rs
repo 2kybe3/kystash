@@ -18,6 +18,7 @@ use crate::{
             routes::{root, upload, version},
         },
     },
+    utils,
 };
 
 mod middleware;
@@ -47,7 +48,7 @@ pub async fn start(cfg: ServerConfig) {
         Err(e) => {
             error!("failed to start web server");
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         }
     };
 
@@ -57,7 +58,7 @@ pub async fn start(cfg: ServerConfig) {
         }
         Err(e) => {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         }
     };
 }

@@ -15,7 +15,6 @@ use tracing::{debug, error};
 
 use crate::{
     config::{self, server::ServerConfig},
-    editor,
     server::commands::ServerCommands,
     utils,
 };
@@ -29,22 +28,22 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
         .canonicalize()
         .unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
-    let dir = utils::get_dir_file_parent(&path);
+    let dir = utils::fs::get_dir_file_parent(&path);
     fs::create_dir_all(&dir).await.unwrap_or_else(|e| {
         error!("{e}");
-        crate::error::fatal_error();
+        utils::error::fatal_error();
     });
     if let Err(e) = env::set_current_dir(&dir) {
         error!("failed to set current cwd");
         error!("{e}");
-        crate::error::fatal_error();
+        utils::error::fatal_error();
     };
 
     match command {
         ServerCommands::Launch => run(path).await,
-        ServerCommands::Edit => editor::open(path).await,
+        ServerCommands::Edit => utils::editor::open(path).await,
         ServerCommands::GenerateServerConfig { stdout } => {
             config::server::generate_server_cfg(*stdout, path).await
         }

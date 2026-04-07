@@ -9,7 +9,7 @@ use std::{
     process::exit,
 };
 
-use crate::{config::shared::get_root_config_path, editor, sha};
+use crate::{config::shared::get_root_config_path, utils};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{self, File, OpenOptions},
@@ -54,15 +54,15 @@ impl ServerConfig {
     pub async fn get_upload_dir(&self) -> PathBuf {
         let dir: PathBuf = self.upload_dir.parse().unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
         fs::create_dir_all(&dir).await.unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
         dir.canonicalize().unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         })
     }
 
@@ -84,7 +84,7 @@ impl ServerConfig {
                 Ok(v) => v,
                 Err(e) => {
                     error!("{e}");
-                    crate::error::fatal_error();
+                    utils::error::fatal_error();
                 }
             }
         )
@@ -99,37 +99,37 @@ impl ServerConfig {
             .await
             .unwrap_or_else(|e| {
                 error!("{e}");
-                crate::error::fatal_error();
+                utils::error::fatal_error();
             });
 
         file.write_all(self.to_toml().as_bytes())
             .await
             .unwrap_or_else(|e| {
                 error!("{e}");
-                crate::error::fatal_error();
+                utils::error::fatal_error();
             })
     }
 
     pub async fn load(path: impl AsRef<Path>) -> Self {
         let mut file = File::open(path).await.unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
         let mut str = String::new();
         file.read_to_string(&mut str).await.unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
         toml::from_str(&str).unwrap_or_else(|e| {
             error!("invalid server config: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         })
     }
 
     pub fn get_client_with_token(&self, token: &str) -> Option<(&String, &ClientSettings)> {
-        let hashed = sha::sha256(token);
+        let hashed = utils::sha::sha256(token);
         let res: Vec<_> = self
             .clients
             .iter()
@@ -221,7 +221,7 @@ pub async fn generate_server_cfg(stdout: bool, path: impl AsRef<Path>) {
     } else {
         ServerConfig::example().save(&path).await;
         info!("generated {}. please tweak it as needed", path.display());
-        editor::open(path).await;
+        utils::editor::open(path).await;
     }
 
     exit(0);

@@ -14,7 +14,7 @@ use crate::{
         server::{self, ClientSettings},
         shared::get_root_config_path,
     },
-    error, sha,
+    utils,
 };
 use base64::{Engine, engine::general_purpose};
 use chrono::Utc;
@@ -53,7 +53,7 @@ impl ClientConfig {
     pub fn to_toml(&self) -> String {
         toml::to_string_pretty(self).unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         })
     }
 
@@ -66,32 +66,32 @@ impl ClientConfig {
             .await
             .unwrap_or_else(|e| {
                 error!("{e}");
-                crate::error::fatal_error();
+                utils::error::fatal_error();
             });
 
         file.write_all(self.to_toml().as_bytes())
             .await
             .unwrap_or_else(|e| {
                 error!("{e}");
-                crate::error::fatal_error();
+                utils::error::fatal_error();
             })
     }
 
     pub async fn load(path: impl AsRef<Path>) -> Self {
         let mut file = File::open(path).await.unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
         let mut str = String::new();
         file.read_to_string(&mut str).await.unwrap_or_else(|e| {
             error!("{e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
         toml::from_str(&str).unwrap_or_else(|e| {
             error!("invalid client config: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         })
     }
 
@@ -157,13 +157,13 @@ impl Server {
             let mut buffer = String::new();
             file.read_to_string(&mut buffer).await.unwrap_or_else(|e| {
                 error!("{e}");
-                crate::error::fatal_error();
+                utils::error::fatal_error();
             });
             buffer
         } else if let Some(token_cmd) = &self.token_cmd {
             let mut parts = token_cmd.split_whitespace();
 
-            let program = parts.next().unwrap_or_else(|| error::fatal_error());
+            let program = parts.next().unwrap_or_else(|| utils::error::fatal_error());
 
             let res = Command::new(program)
                 .args(parts)
@@ -171,14 +171,14 @@ impl Server {
                 .await
                 .unwrap_or_else(|e| {
                     error!("{e}");
-                    error::fatal_error();
+                    utils::error::fatal_error();
                 });
 
             String::from_utf8_lossy(&res.stdout).to_string()
         } else if let Some(token) = &self.token {
             token.to_owned()
         } else {
-            error::fatal_error();
+            utils::error::fatal_error();
         }
     }
 }
@@ -218,7 +218,7 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_path: impl 
     debug!("server config (pre): {server_cfg:?}");
 
     let raw_pass = get_random_pass();
-    let hashed_pass = sha::sha256(&raw_pass);
+    let hashed_pass = utils::sha::sha256(&raw_pass);
 
     if !overwrite && server_cfg.has_client(name) {
         error!("Server config already has a client {name}. Use --overwrite to ignore");
@@ -246,7 +246,7 @@ fn get_random_pass() -> String {
     let mut rng = rand::rng();
     let dist = Uniform::new_inclusive(b'(', b'~').unwrap_or_else(|e| {
         error!("{e}");
-        crate::error::fatal_error();
+        utils::error::fatal_error();
     });
 
     (0..256).map(|_| dist.sample(&mut rng) as char).collect()

@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 use xxhash_rust::xxh3;
 
-use crate::{config::client::ClientConfig, error};
+use crate::{config::client::ClientConfig, utils};
 
 const MAX_UPLOAD_ATTEMPT_PER_CHUNK: u32 = 5;
 
@@ -36,7 +36,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         }
         Err(e) => {
             error!("error checking if file exists: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         }
     }
 
@@ -47,13 +47,13 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         .await
         .unwrap_or_else(|e| {
             error!("failed to open file: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
     info!("getting upload id this might take a while");
     let upload_id = get_upload_id(&mut file).await.unwrap_or_else(|e| {
         error!("error processing file: {e}");
-        crate::error::fatal_error();
+        utils::error::fatal_error();
     });
 
     info!(
@@ -66,7 +66,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         .await
         .unwrap_or_else(|e| {
             error!("error checking upload status: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         });
 
     info!("{bv:?}");
@@ -75,7 +75,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         .await
         .unwrap_or_else(|e| {
             error!("error uploading file: {e}");
-            crate::error::fatal_error();
+            utils::error::fatal_error();
         })
 }
 
@@ -168,11 +168,11 @@ async fn upload_file_concurrent(
                 Ok(Ok(v)) => v,
                 Err(e) => {
                     error!("can't read file {e}");
-                    error::fatal_error();
+                    utils::error::fatal_error();
                 }
                 Ok(Err(e)) => {
                     error!("can't read file {e}");
-                    error::fatal_error();
+                    utils::error::fatal_error();
                 }
             };
 

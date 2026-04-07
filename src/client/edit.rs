@@ -5,8 +5,8 @@
 
 use std::path::PathBuf;
 
-use crate::{config::client::ClientConfig, editor};
+use crate::{config::client::ClientConfig, utils};
 
 pub async fn edit(client_config: Option<PathBuf>) {
-    editor::open(client_config.unwrap_or(ClientConfig::default_path().await)).await;
+    utils::editor::open(client_config.unwrap_or(ClientConfig::default_path().await)).await;
 }

@@ -6,7 +6,7 @@
 use std::{path::PathBuf, process::exit};
 use tracing::{debug, error, info};
 
-use crate::{config::client::ClientConfig, error, shared::version::VersionResponse};
+use crate::{config::client::ClientConfig, shared::version::VersionResponse, utils};
 
 pub async fn check_server(client_config: Option<PathBuf>, server: Option<String>) {
     let server_name = server.unwrap_or("default".to_string());
@@ -29,7 +29,7 @@ pub async fn check_server(client_config: Option<PathBuf>, server: Option<String>
         .await
         .unwrap_or_else(|e| {
             error!(error = ?e, "failed to send request");
-            error::fatal_error();
+            utils::error::fatal_error();
         });
 
     if !res.status().is_success() {
@@ -43,7 +43,7 @@ pub async fn check_server(client_config: Option<PathBuf>, server: Option<String>
         Ok(v) => v,
         Err(e) => {
             error!("{e}");
-            error::fatal_error();
+            utils::error::fatal_error();
         }
     };
 

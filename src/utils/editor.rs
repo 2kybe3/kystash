@@ -7,12 +7,12 @@ use std::path::Path;
 use tokio::process::Command;
 use tracing::warn;
 
-use crate::utils::create_dir_file_parent;
+use crate::utils;
 
 const DEFAULT_EDITOR: &str = "vim";
 
 pub async fn open(path: impl AsRef<Path>) {
-    create_dir_file_parent(&path).await;
+    utils::fs::create_dir_file_parent(&path).await;
 
     let editor = std::env::var("EDITOR").ok().unwrap_or_else(|| {
         warn!("EDITOR env not set defaulting to {DEFAULT_EDITOR}");

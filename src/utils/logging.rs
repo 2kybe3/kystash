@@ -6,7 +6,7 @@
 use std::io;
 use tracing_subscriber::EnvFilter;
 
-use crate::error;
+use crate::utils;
 
 pub fn tracing_init(trace: bool, debug: bool) {
     let level = if trace {
@@ -21,7 +21,7 @@ pub fn tracing_init(trace: bool, debug: bool) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("An error ocured setting up the logger. how ironic: {e}");
-            error::fatal_error();
+            utils::error::fatal_error();
         }
     };
 
