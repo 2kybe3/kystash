@@ -1,6 +1,4 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i bash -p bash gnused diffutils
-# shellcheck shell=bash
+#! /usr/bin/env bash
 
 VERSION="$1"
 
@@ -16,7 +14,7 @@ if [ ! -f "$CARGO_FILE" ]; then
   exit 1
 fi
 
-RESULT=$(sed -E "s|^version = \".*\"$|version = \"$VERSION\"|")
+RESULT=$(sed -E "s|^version = \".*\"$|version = \"$VERSION\"|" $CARGO_FILE)
 
 diff <(echo "$RESULT") $CARGO_FILE
 

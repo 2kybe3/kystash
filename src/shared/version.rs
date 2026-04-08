@@ -6,7 +6,6 @@
 use base64::{Engine, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 
-// TODO: versioning
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SERVICE_NAME: &str = "kystash";
 const MAGIC_STRING: &str = "uhhhh. this should be kystash.";
