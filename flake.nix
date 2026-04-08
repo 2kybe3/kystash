@@ -1,4 +1,9 @@
 {
+  nixConfig.extra-substituters = [ "https://attic.kybe.xyz/main" ];
+  nixConfig.extra-trusted-public-keys = [
+    "main:cb7V485kGP0lG7LtQ/suOgKOgtVxNXrnD6i5yCtnaMQ="
+  ];
+
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
