@@ -4,9 +4,11 @@
   programs = {
     taplo.enable = true;
     typos.enable = true;
+    shfmt.enable = true;
     nixfmt.enable = true;
     yamlfmt.enable = true;
     rustfmt.enable = true;
+    shellcheck.enable = true;
   };
   settings = {
     excludes = [

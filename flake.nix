@@ -39,6 +39,8 @@
           strictDeps = true;
         };
 
+        scripts = import ./nix/scripts { inherit pkgs; };
+
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
         kystash = craneLib.buildPackage (
           commonArgs
@@ -51,7 +53,8 @@
         packages = rec {
           inherit kystash;
           default = kystash;
-        };
+        }
+        // scripts;
         apps.default = {
           type = "app";
           program = "${kystash}/bin/kystash";
