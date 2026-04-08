@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 use tokio::fs;
-use tracing::{trace, info, warn, error};
+use tracing::{error, info, trace, warn};
 use xxhash_rust::xxh3::xxh3_128;
 
 type MetadataId = usize;

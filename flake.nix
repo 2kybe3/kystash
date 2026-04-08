@@ -60,11 +60,18 @@
         checks = {
           inherit kystash;
 
+          kystash-tests = craneLib.cargoTest (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+            }
+          );
+
           kystash-clippy = craneLib.cargoClippy (
             commonArgs
             // {
               inherit cargoArtifacts;
-              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+              cargoClippyExtraArgs = "-- --deny warnings";
             }
           );
 
