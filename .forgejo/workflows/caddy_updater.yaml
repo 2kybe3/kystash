@@ -1,0 +1,47 @@
+on:
+  push:
+    branches:
+      - main
+env:
+  REPO: ssh://git@gitc.kybe.xyz/2kybe3/infra-caddy.git
+  BRANCH: main
+jobs:
+  lint-and-build:
+    runs-on: docker
+    steps:
+      - uses: https://github.com/cachix/install-nix-action@v31
+      - name: Setup SSH & GPG
+        run: |
+          echo "::group::Setup SSH"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ACTIONS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H gitc.kybe.xyz >> ~/.ssh/known_hosts
+          echo "::endgroup::"
+
+          echo "::group::Setup GPGP"
+          gpg --batch --import <<< "${{ secrets.ACTIONS_GPG_KEY }}"
+          KEY_ID=$(gpg --list-keys --with-colons | awk -F: '/^pub/ {print $5; exit}')
+          echo "KEY_ID=$KEY_ID"
+          git config --global user.signingkey $KEY_ID
+          git config --global commit.gpgsign true
+          echo "::endgroup::"
+
+          echo "::group::Setup User"
+          git config --global user.name "actions"
+          git config --global user.email "actions@kybe.xyz"
+          echo "::endgroup::"
+      - name: Update flake
+        run: |
+          echo "::group::Clone Repo"
+          git clone -b ${{ env.BRANCH }} ${{ env.REPO }} repo
+          cd repo
+          echo "::endgroup::"
+
+          echo "::group::Updating Flake"
+          nix flake update kystash --commit-lock-file
+          echo "::endgroup::"
+
+          echo "::group::Pushing"
+          git push origin "${{ env.BRANCH }}"
+          echo "::endgroup::"
