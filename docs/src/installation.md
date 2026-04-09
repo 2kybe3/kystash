@@ -6,30 +6,43 @@ There are multiple ways to install kystash. Choose any one of the methods below 
 
 This builds kystash from source.
 
-#### Unstable
+### Unstable
+
 ```bash
 cargo install --git https://git.kybe.xyz/2kybe3/kystash
 ```
 
-#### Stable
+### Stable
 TBA
 
 ## Using nix
 
 The flake defines a nix cache server you can use if you don't want to build from source.
 
-#### Profile (unstable)
+### Unstable
+
+#### Shell
+```bash
+nix develop git+https://git.kybe.xyz/2kybe3/kystash#kystash
+```
+
+#### Profile
 ```bash
 nix profile install git+https://git.kybe.xyz/2kybe3/kystash
 ```
 
-#### One time run (unstable)
+#### One time run
 ```bash
 nix run git+https://git.kybe.xyz/2kybe3/kystash
 ```
 
-#### Profile (stable)
+### Stable
+
+#### Shell
 TBA
 
-#### One time run (stable)
+#### Profile
+TBA
+
+#### One time run
 TBA

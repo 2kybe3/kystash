@@ -12,6 +12,12 @@
 
 ### Nix
 
+#### Shell
+
+```bash
+nix develop git+https://git.kybe.xyz/2kybe3/kystash#kystash
+```
+
 #### Profile
 ```bash
 nix profile install git+https://git.kybe.xyz/2kybe3/kystash

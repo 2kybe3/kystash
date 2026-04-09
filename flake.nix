@@ -92,16 +92,24 @@
 
           formatting = treefmtEval.config.build.check self;
         };
-        devShells.default = craneLib.devShell {
-          checks = self.checks.${system};
+        devShells = {
+          default = self.devShells.${system}.dev;
+          kystash = pkgs.mkShell {
+            packages = [
+              self.packages.${system}.kystash
+            ];
+          };
+          dev = craneLib.devShell {
+            checks = self.checks.${system};
 
-          packages = with pkgs; [
-            cargo-edit
-            mdbook
-          ];
+            packages = with pkgs; [
+              cargo-edit
+              mdbook
+            ];
 
-          KYSTASH_CLIENT_PATH = "./test-client";
-          KYSTASH_SERVER_PATH = "./test-server";
+            KYSTASH_CLIENT_PATH = "./test-client";
+            KYSTASH_SERVER_PATH = "./test-server";
+          };
         };
         formatter = treefmtEval.config.build.wrapper;
       }
