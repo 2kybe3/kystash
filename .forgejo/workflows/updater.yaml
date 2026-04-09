@@ -34,10 +34,13 @@ jobs:
       - name: Update
         id: update
         run: |
+          echo "::group::Updating Flake"
           HEAD=$(git rev-parse HEAD)
 
           nix flake update --commit-lock-file --accept-flake-config
+          echo "::endgroup::"
 
+          echo "::group::Updating Cargo.toml"
           cargo update
           git add .
 
@@ -46,14 +49,17 @@ jobs:
           else
             echo ">> No cargo changes"
           fi
+          echo "::endgroup::"
 
           if [ "$HEAD" != "$(git rev-parse HEAD)" ]; then
+            echo "::group::Pushing"
             BRANCH="update"
 
             git checkout -B "$BRANCH"
             git push -f -u origin "$BRANCH"
 
             echo "branch=$BRANCH" >> $FORGEJO_OUTPUT
+            echo "::endgroup::"
           else
             echo "branch=none" >> $FORGEJO_OUTPUT
             echo ">> HEAD unchanged, skipping branch creation/push"
@@ -63,8 +69,12 @@ jobs:
         continue-on-error: true
         if: ${{ steps.update.outputs.branch != 'none' }}
         run: |
+          echo "::group::Building"
           nix build .#kystash .#docs --max-jobs 32 -L --no-write-lock-file --accept-flake-config
+          echo "::endgroup::"
+          echo "::group::Checking"
           nix flake check . --max-jobs 32 -L --no-write-lock-file --accept-flake-config
+          echo "::endgroup::"
       - name: Make PR
         if: ${{ steps.update.outputs.branch != 'none' }}
         run: |
