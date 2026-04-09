@@ -56,12 +56,15 @@
         packages = rec {
           inherit kystash;
           default = kystash;
+          docs = import ./docs { inherit pkgs; };
         };
+
         apps.default = {
           type = "app";
           program = "${kystash}/bin/kystash";
           meta.description = "A simple image/file sharing server/client";
         };
+
         checks = {
           inherit kystash;
 
@@ -91,6 +94,11 @@
         };
         devShells.default = craneLib.devShell {
           checks = self.checks.${system};
+
+          packages = with pkgs; [
+            cargo-edit
+            mdbook
+          ];
 
           KYSTASH_CLIENT_PATH = "./test-client";
           KYSTASH_SERVER_PATH = "./test-server";

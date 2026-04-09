@@ -1,0 +1,10 @@
+[book]
+title = "kystash"
+authors = ["2kybe3"]
+language = "en"
+
+[output.html]
+default-theme = "Coal"
+preferred-dark-theme = "Coal"
+git-repository-url = "https://git.kybe.xyz/2kybe3/kystash"
+git-repository-icon = "fas-code-fork"

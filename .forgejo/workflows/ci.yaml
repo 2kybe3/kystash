@@ -15,7 +15,7 @@ jobs:
           attic use main
       - name: Build & Checks
         run: |
-          nix build . --max-jobs 32 -L --no-write-lock-file --accept-flake-config
+          nix build .#kystash .#docs --max-jobs 32 -L --no-write-lock-file --accept-flake-config
           nix flake check . --max-jobs 32 -L --no-write-lock-file --accept-flake-config
       - name: Push to Attic
         if: always()
