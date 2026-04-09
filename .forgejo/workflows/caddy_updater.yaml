@@ -6,7 +6,7 @@ env:
   REPO: ssh://git@gitc.kybe.xyz/2kybe3/infra-caddy.git
   BRANCH: main
 jobs:
-  lint-and-build:
+  update-caddy:
     runs-on: docker
     steps:
       - uses: https://github.com/cachix/install-nix-action@v31
