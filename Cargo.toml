@@ -2,7 +2,7 @@
 name = "kystash"
 description = "A simple image/file sharing server/client"
 homepage = "https://git.kybe.xyz/2kybe3/kystash"
-license = "GPL-3.0-or-later"
+license = "GPL-3.0"
 version = "0.0.1"
 edition = "2024"
 
