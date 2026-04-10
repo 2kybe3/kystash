@@ -3,9 +3,8 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use std::{collections::HashMap, sync::Arc};
-
 use actix_web::{App, HttpServer, web};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -13,11 +12,13 @@ use crate::{
     config::server::ServerConfig,
     server::{
         WebserverState,
+        chunk_map::ChunkMap,
         webserver::{
             middleware::auth::Auth,
             routes::{root, upload, version},
         },
     },
+    shared::metadata::store::MetadataStore,
     utils,
 };
 
@@ -26,15 +27,24 @@ mod routes;
 
 pub async fn start(cfg: ServerConfig) {
     let cfg = Arc::new(cfg);
-
     let cfg_clone = Arc::clone(&cfg);
     let auth = Auth::new(Arc::clone(&cfg_clone));
-    let chunk_map = Arc::new(Mutex::new(HashMap::new()));
+    let chunk_map = Arc::new(Mutex::new(ChunkMap::new()));
+
+    let metadata_store = MetadataStore::load_from_upload_store(&cfg.get_upload_dir().await)
+        .await
+        .unwrap_or_else(|e| {
+            error!("{e}");
+            utils::error::fatal_error();
+        });
+    let metadata_store = Arc::new(Mutex::new(metadata_store));
+
     let server = match HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(WebserverState {
                 cfg: Arc::clone(&cfg_clone),
                 chunk_map: Arc::clone(&chunk_map),
+                metadata_store: Arc::clone(&metadata_store),
             }))
             .service(root::root)
             .service(upload::chunk::chunk)

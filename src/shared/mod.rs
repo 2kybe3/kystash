@@ -6,7 +6,7 @@
 pub mod metadata;
 pub mod version;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UploadIdentity {
     pub folder_id: String,
     pub upload_id: String,

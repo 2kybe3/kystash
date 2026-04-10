@@ -4,7 +4,6 @@
  */
 
 use actix_web::{HttpMessage, HttpResponse, Responder, http::header::HeaderMap, post, web};
-use bitvec::vec::BitVec;
 use std::os::unix::fs::FileExt;
 use tokio::fs::OpenOptions;
 use tracing::trace;
@@ -88,16 +87,12 @@ pub async fn chunk(
                 user.settings.folder_id.to_string(),
                 headers.upload_id.to_owned(),
             );
-            let chunk_map = &web_data.chunk_map;
-            let idx = headers.current_chunk - 1;
 
-            let mut map = chunk_map.lock().await;
-            let bv = map
-                .entry(id)
-                .or_insert_with(|| BitVec::repeat(false, headers.total_chunks));
-
-            // TODO: maybe allow total_chunks changes
-            bv.set(idx, true);
+            web_data.chunk_map.lock().await.set_finished_chunk(
+                &id,
+                headers.current_chunk - 1,
+                headers.total_chunks,
+            );
 
             HttpResponse::Ok().finish()
         }

@@ -4,8 +4,6 @@
  */
 
 use std::{
-    collections::HashMap,
-    env,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -16,10 +14,11 @@ use tracing::{debug, error};
 use crate::{
     config::{self, server::ServerConfig},
     server::commands::ServerCommands,
-    shared::UploadIdentity,
+    shared::metadata::store::MetadataStore,
     utils,
 };
 
+mod chunk_map;
 pub mod commands;
 mod webserver;
 
@@ -36,11 +35,6 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
         error!("{e}");
         utils::error::fatal_error();
     });
-    if let Err(e) = env::set_current_dir(&dir) {
-        error!("failed to set current cwd");
-        error!("{e}");
-        utils::error::fatal_error();
-    };
 
     match command {
         ServerCommands::Launch => run(path).await,
@@ -54,11 +48,11 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
     };
 }
 
-type ChunkMap = HashMap<UploadIdentity, bitvec::vec::BitVec>;
-
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,
-    pub chunk_map: Arc<Mutex<ChunkMap>>,
+    pub chunk_map: Arc<Mutex<chunk_map::ChunkMap>>,
+    #[allow(unused)]
+    pub metadata_store: Arc<Mutex<MetadataStore>>,
 }
 
 async fn run(path: impl AsRef<Path>) {
