@@ -39,6 +39,8 @@
           name = "source";
         };
 
+        scripts = import ./nix/scripts { inherit pkgs; };
+
         commonArgs = {
           inherit src;
           strictDeps = true;
@@ -57,7 +59,8 @@
           inherit kystash;
           default = kystash;
           docs = import ./docs { inherit pkgs; };
-        };
+        }
+        // scripts;
 
         apps.default = {
           type = "app";
