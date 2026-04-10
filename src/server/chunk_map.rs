@@ -13,11 +13,18 @@ use tracing::warn;
 
 use crate::shared::UploadIdentity;
 
+#[derive(Default)]
 pub struct ChunkMap(HashMap<UploadIdentity, BitVec>);
 
 impl ChunkMap {
-    pub fn new() -> Self {
-        ChunkMap(HashMap::new())
+    pub fn to_string(&self, identity: &UploadIdentity) -> Option<String> {
+        let bv = self.0.get(identity)?;
+        Some(
+            bv.iter()
+                .map(|b| if *b { "1" } else { "0" })
+                .collect::<Vec<_>>()
+                .join(""),
+        )
     }
 
     pub fn set_finished_chunk(&mut self, identity: &UploadIdentity, index: usize, total: usize) {
@@ -70,7 +77,7 @@ mod tests {
 
     #[tokio::test(name = "chunk_map_finished")]
     pub async fn chunk_map_finished() {
-        let mut map = ChunkMap::new();
+        let mut map = ChunkMap::default();
         let identity = UploadIdentity::new("test", "test");
         for i in 0..10 {
             map.set_finished_chunk(&identity, i as usize, 10);
@@ -80,7 +87,7 @@ mod tests {
 
     #[tokio::test(name = "chunk_map_random_resize_finished")]
     pub async fn chunk_map_random_resize_finished() {
-        let mut map = ChunkMap::new();
+        let mut map = ChunkMap::default();
         let identity = UploadIdentity::new("test", "test");
         for i in 0..10 {
             map.set_finished_chunk(&identity, i as usize, 10);

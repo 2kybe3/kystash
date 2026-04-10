@@ -14,6 +14,7 @@ use std::{
     future::{Ready, ready},
     sync::Arc,
 };
+use tracing::trace;
 
 use crate::config::{self, server::ClientSettings};
 
@@ -64,19 +65,21 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let header = req
+        let authorization_header = req
             .headers()
             .get("Authorization")
             .map(|v| v.to_str().ok().unwrap_or_default().to_owned())
             .unwrap_or_default();
-        let res = auth(header, &self.cfg);
+
+        let res = auth(authorization_header, &self.cfg);
 
         match res {
             Some(client) => {
-                req.extensions_mut().insert(AuthClient {
-                    name: client.0,
-                    settings: client.1,
-                });
+                trace!(
+                    "auth passed for {} with settings {:?}",
+                    client.name, client.settings
+                );
+                req.extensions_mut().insert(client);
 
                 Box::pin(self.service.call(req))
             }
@@ -90,22 +93,21 @@ where
 
 #[derive(Clone, Debug)]
 pub struct AuthClient {
-    #[allow(unused)]
     pub name: String,
     pub settings: ClientSettings,
 }
 
-fn auth(
-    header: String,
-    cfg: &Arc<config::server::ServerConfig>,
-) -> Option<(String, ClientSettings)> {
+fn auth(header: String, cfg: &Arc<config::server::ServerConfig>) -> Option<AuthClient> {
     let encoded = header.strip_prefix("Bearer ")?;
 
     let decoded_bytes = general_purpose::STANDARD.decode(encoded).ok()?;
 
     let decoded_str = String::from_utf8(decoded_bytes).ok()?;
 
-    let (client_id, settings) = cfg.get_client_with_token(&decoded_str)?;
+    let (client_name, settings) = cfg.get_client_with_token(&decoded_str)?;
 
-    Some((client_id.to_owned(), settings.to_owned()))
+    Some(AuthClient {
+        name: client_name.to_owned(),
+        settings: settings.to_owned(),
+    })
 }

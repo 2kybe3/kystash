@@ -13,12 +13,12 @@ use tracing::{debug, error};
 
 use crate::{
     config::{self, server::ServerConfig},
-    server::commands::ServerCommands,
+    server::{chunk_map::ChunkMap, commands::ServerCommands},
     shared::metadata::store::MetadataStore,
     utils,
 };
 
-mod chunk_map;
+pub mod chunk_map;
 pub mod commands;
 mod webserver;
 
@@ -50,7 +50,7 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
 
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,
-    pub chunk_map: Arc<Mutex<chunk_map::ChunkMap>>,
+    pub chunk_map: Arc<Mutex<ChunkMap>>,
     #[allow(unused)]
     pub metadata_store: Arc<Mutex<MetadataStore>>,
 }

@@ -29,7 +29,7 @@ pub async fn start(cfg: ServerConfig) {
     let cfg = Arc::new(cfg);
     let cfg_clone = Arc::clone(&cfg);
     let auth = Auth::new(Arc::clone(&cfg_clone));
-    let chunk_map = Arc::new(Mutex::new(ChunkMap::new()));
+    let chunk_map = Arc::new(Mutex::new(ChunkMap::default()));
 
     let metadata_store = MetadataStore::load_from_upload_store(&cfg.get_upload_dir().await)
         .await

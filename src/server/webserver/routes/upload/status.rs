@@ -26,21 +26,8 @@ pub async fn status(
     };
 
     let id = UploadIdentity::new(user.settings.folder_id, upload_id);
-    let chunk_map = &web_data.chunk_map;
-
-    let bv = chunk_map.lock().await;
-    let bv = bv.get(&id);
-
-    match bv {
+    match web_data.chunk_map.lock().await.to_string(&id) {
+        Some(v) => HttpResponse::Found().body(v),
         None => HttpResponse::NotFound().finish(),
-        Some(v) => {
-            let data: String = v
-                .iter()
-                .map(|b| if *b { "1" } else { "0" })
-                .collect::<Vec<_>>()
-                .join("");
-
-            HttpResponse::Found().body(data)
-        }
     }
 }

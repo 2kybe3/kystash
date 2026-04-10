@@ -135,6 +135,7 @@ impl ServerConfig {
             .iter()
             .filter(|s| s.1.shared_secret.eq(&hashed))
             .collect();
+
         if res.len() > 1 {
             warn!("multiple clients share the same hashed key");
         }
