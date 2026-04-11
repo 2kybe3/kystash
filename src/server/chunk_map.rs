@@ -17,14 +17,12 @@ use crate::shared::UploadIdentity;
 pub struct ChunkMap(HashMap<UploadIdentity, BitVec>);
 
 impl ChunkMap {
-    pub fn to_string(&self, identity: &UploadIdentity) -> Option<String> {
-        let bv = self.0.get(identity)?;
-        Some(
-            bv.iter()
-                .map(|b| if *b { "1" } else { "0" })
-                .collect::<Vec<_>>()
-                .join(""),
-        )
+    pub fn get_complete(&self, identity: &UploadIdentity) -> Option<Vec<usize>> {
+        Some(self.0.get(identity)?.iter_ones().collect())
+    }
+
+    pub fn get_total(&self, identity: &UploadIdentity) -> Option<usize> {
+        Some(self.0.get(identity)?.len())
     }
 
     pub fn set_finished_chunk(&mut self, identity: &UploadIdentity, index: usize, total: usize) {

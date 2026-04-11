@@ -5,9 +5,9 @@
 
 mod edit;
 pub use edit::edit;
-mod check_server;
-pub use check_server::check_server;
 mod upload;
+mod utils;
 pub use upload::upload;
+mod check_server;
 mod metadata;
-// pub use metadata::set_metadata;
+pub use check_server::check_server;

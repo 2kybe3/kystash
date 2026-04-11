@@ -20,14 +20,21 @@ type MetadataId = usize;
 
 #[derive(Debug, Default)]
 pub struct MetadataStore {
-    store: Vec<Metadata>,                  // id -> meta
-    meta_to_id: HashMap<u128, MetadataId>, // hash -> id
-    identity_to_id: HashMap<UploadIdentity, MetadataId>,
+    store: Vec<Metadata>,                                // id -> meta
+    meta_to_id: HashMap<u128, MetadataId>,               // hash -> id
+    identity_to_id: HashMap<UploadIdentity, MetadataId>, // upload_id -> id
 }
 
 impl MetadataStore {
     pub fn get(&self, id: MetadataId) -> &Metadata {
         &self.store[id]
+    }
+
+    pub fn code_in_use(&self, code: &str) -> bool {
+        self.identity_to_id
+            .iter()
+            .filter_map(|(_, id)| self.store.get(*id))
+            .any(|m| m.code.as_deref() == Some(code))
     }
 
     /// Get's the current metadata of a identity
@@ -111,6 +118,8 @@ impl MetadataStore {
                 }
             }
         }
+
+        info!("finished generating store from upload directory");
 
         Ok(store)
     }

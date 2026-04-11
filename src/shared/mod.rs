@@ -4,6 +4,7 @@
  */
 
 pub mod metadata;
+pub mod status_response;
 pub mod version;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

@@ -18,6 +18,8 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
+use crate::shared::metadata::store::MetadataStore;
+
 /// How many bytes we are gonna get for magic bytes file mime detection
 const MAGIC_HEADER_SIZE: u64 = 8192;
 
@@ -50,6 +52,30 @@ impl Metadata {
             is_public: false,
             code: None,
         }
+    }
+
+    /// (Allowed, Reason)
+    pub fn change_allowed(
+        old: &Self,
+        new: &Self,
+        store: &MetadataStore,
+    ) -> (bool, Option<&'static str>) {
+        if old.uploaded_at != new.uploaded_at {
+            return (false, Some("uploaded_at change not allowed"));
+        }
+
+        if old.file_size != new.file_size {
+            return (false, Some("file_size change not allowed"));
+        }
+
+        if old.code != new.code
+            && let Some(code) = &new.code
+            && store.code_in_use(code)
+        {
+            return (false, Some("new code is already in use"));
+        }
+
+        (true, None)
     }
 
     pub async fn from_path(

@@ -3,18 +3,16 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use anyhow::bail;
 use bitvec::vec::BitVec;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use std::{fs, os::unix::fs::FileExt, path::PathBuf, process::exit, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
     sync::Semaphore,
-    time::Instant,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{error, info, trace, warn};
 
-use crate::{config::client::ClientConfig, shared::metadata::Metadata, utils};
+use crate::{client::utils::api, config::client::ClientConfig, shared::metadata::Metadata, utils};
 
 const MAX_UPLOAD_ATTEMPT_PER_CHUNK: u32 = 5;
 
@@ -63,26 +61,42 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     );
     let auth = server_cfg.auth().await;
 
-    let start = Instant::now();
+    let client = Client::new();
 
-    let (client, bv) = get_upload_status(&upload_id, server_cfg.server(), &auth)
-        .await
-        .unwrap_or_else(|e| {
-            error!("error checking upload status: {e}");
-            utils::error::fatal_error();
-        });
+    let file_metadata = file.metadata().await.unwrap_or_else(|e| {
+        error!("failed to get file_metadata: {e}");
+        utils::error::fatal_error();
+    });
+    let file_size = file_metadata.len();
+    let chunk_size = 256 * 1024;
+    let total_chunks = file_size.div_ceil(chunk_size);
 
-    debug!("got status in {}ms: {bv:?}", start.elapsed().as_millis());
-    let start = Instant::now();
+    let bv = api::get_upload_status(
+        &client,
+        total_chunks,
+        server_cfg.server(),
+        &upload_id,
+        &auth,
+    )
+    .await;
 
-    upload_file_concurrent(client, bv, file, &upload_id, server_cfg.server(), &auth, 6)
-        .await
-        .unwrap_or_else(|e| {
-            error!("error uploading file: {e}");
-            utils::error::fatal_error();
-        });
-
-    info!("finished upload in {}ms", start.elapsed().as_millis());
+    upload_file_concurrent(
+        client,
+        FileInfo { file, file_size },
+        ChunkInfo {
+            chunk_size,
+            total_chunks,
+            done: bv,
+        },
+        &upload_id,
+        server_cfg.server(),
+        &auth,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        error!("error uploading file: {e}");
+        utils::error::fatal_error();
+    });
 
     let metadata = Metadata::from_path(file_path, None).await;
     info!("{metadata:?}");
@@ -91,58 +105,43 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
     // used to know if the upload is finished for gc)
 }
 
-async fn get_upload_status(
-    upload_id: &str,
-    server_url: &str,
-    token: &str,
-) -> anyhow::Result<(reqwest::Client, Option<BitVec>)> {
-    let client = Client::new();
+const CONCURRENCY: usize = 6;
 
-    let resp = client
-        .get(format!("{server_url}/upload/status"))
-        .bearer_auth(token)
-        .header("Upload-ID", upload_id)
-        .send()
-        .await?;
+struct ChunkInfo {
+    chunk_size: u64,
+    total_chunks: u64,
+    done: Option<BitVec>,
+}
 
-    let status = resp.status();
-    if status != StatusCode::NOT_FOUND && status != StatusCode::FOUND {
-        bail!("server returned invalid status code {status}")
-    } else if status == StatusCode::NOT_FOUND {
-        return Ok((client, None));
-    }
-
-    let text = resp.text().await?;
-
-    let mut bv = BitVec::repeat(false, text.chars().count());
-    for (i, c) in text.char_indices() {
-        bv.set(i, c == '1');
-    }
-
-    Ok((client, Some(bv)))
+struct FileInfo {
+    file: File,
+    file_size: u64,
 }
 
 async fn upload_file_concurrent(
     client: reqwest::Client,
-    done: Option<BitVec>,
-    file: File,
+    file_info: FileInfo,
+    chunk_info: ChunkInfo,
     upload_id: &str,
     server_url: &str,
     token: &str,
-    concurrency: usize,
 ) -> anyhow::Result<()> {
+    let file = file_info.file;
+    let file_size = file_info.file_size;
+
+    let chunk_size = chunk_info.chunk_size;
+    let total_chunks = chunk_info.total_chunks;
+    let done = chunk_info.done;
+
     let client = Arc::new(client);
     let upload_id = Arc::new(upload_id.to_string());
     let upload_url = Arc::new(format!("{server_url}/upload/chunk"));
     let token = Arc::new(token.to_string());
     let done = done.map(Arc::new);
 
-    let file_size = file.metadata().await?.len();
-    let chunk_size = 256 * 1024;
-    let semaphore = Arc::new(Semaphore::new(concurrency));
+    let semaphore = Arc::new(Semaphore::new(CONCURRENCY));
 
     let mut futures = Vec::new();
-    let total_chunks = file_size.div_ceil(chunk_size as u64) as usize;
     let mut current_chunk_index = 0;
     let mut offset = 0u64;
 
@@ -156,7 +155,7 @@ async fn upload_file_concurrent(
         let token = Arc::clone(&token);
 
         let this_offset = offset;
-        let this_chunk_size = std::cmp::min(chunk_size as u64, file_size - this_offset) as usize;
+        let this_chunk_size = std::cmp::min(chunk_size, file_size - this_offset) as usize;
 
         if let Some(ref bv) = done
             && bv.get(current_chunk_index).map(|v| *v).unwrap_or(false)
