@@ -21,7 +21,7 @@ use tokio::{
 /// How many bytes we are gonna get for magic bytes file mime detection
 const MAGIC_HEADER_SIZE: u64 = 8192;
 
-#[derive(Debug, Deserialize, Serialize, Hash, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq)]
 pub struct Metadata {
     /// A comment for a upload
     comment: Option<String>,

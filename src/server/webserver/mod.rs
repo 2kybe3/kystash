@@ -15,7 +15,7 @@ use crate::{
         chunk_map::ChunkMap,
         webserver::{
             middleware::auth::Auth,
-            routes::{root, upload, version},
+            routes::{metadata, root, upload, version},
         },
     },
     shared::metadata::store::MetadataStore,
@@ -49,6 +49,7 @@ pub async fn start(cfg: ServerConfig) {
             .service(root::root)
             .service(upload::chunk::chunk)
             .service(upload::status::status)
+            .service(metadata::get_metadata)
             .wrap(auth.clone())
             .service(version::version)
     })

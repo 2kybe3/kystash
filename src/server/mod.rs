@@ -51,7 +51,6 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,
     pub chunk_map: Arc<Mutex<ChunkMap>>,
-    #[allow(unused)]
     pub metadata_store: Arc<Mutex<MetadataStore>>,
 }
 
