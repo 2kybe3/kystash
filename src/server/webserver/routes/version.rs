@@ -13,6 +13,6 @@ pub async fn version(req: actix_web::HttpRequest) -> impl Responder {
 
     match serde_json::to_string(&VersionResponse::new(user.is_some())) {
         Ok(v) => HttpResponse::Ok().body(v),
-        Err(e) => HttpResponse::InternalServerError().body(format!("{e}")),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }

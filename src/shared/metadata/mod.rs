@@ -171,6 +171,7 @@ mod tests {
     use crate::utils;
     use std::{env::temp_dir, fs, path::PathBuf};
     use tokio::fs::File;
+    use tracing_test::traced_test;
 
     pub fn test_asset(file: &str) -> PathBuf {
         utils::tests::test_asset_folder()
@@ -178,6 +179,7 @@ mod tests {
             .join(file)
     }
 
+    #[traced_test]
     #[tokio::test(name = "metadata_txt")]
     pub async fn metadata_txt() -> anyhow::Result<()> {
         let path = test_asset("ipsum.txt");
@@ -190,6 +192,7 @@ mod tests {
         Ok(())
     }
 
+    #[traced_test]
     #[tokio::test(name = "metadata_png")]
     pub async fn metadata_png() -> anyhow::Result<()> {
         let path = test_asset("tiny.png");
@@ -202,6 +205,7 @@ mod tests {
         Ok(())
     }
 
+    #[traced_test]
     #[tokio::test(name = "metadata_png_no_ext")]
     pub async fn metadata_png_no_ext() -> anyhow::Result<()> {
         let path = test_asset("tiny.png");
@@ -216,12 +220,14 @@ mod tests {
         Ok(())
     }
 
+    #[traced_test]
     #[tokio::test(name = "metadata_default_private")]
     pub async fn metadata_default_private() {
         let metadata = Metadata::new("".into(), None, 69);
         assert!(!metadata.is_public);
     }
 
+    #[traced_test]
     #[tokio::test(name = "metadata-save-and-load")]
     pub async fn metadata_save_and_load() -> anyhow::Result<()> {
         let metadata = Metadata::new("".into(), None, 69);

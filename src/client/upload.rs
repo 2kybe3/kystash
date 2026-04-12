@@ -12,7 +12,12 @@ use tokio::{
 };
 use tracing::{error, info, trace, warn};
 
-use crate::{client::utils::api, config::client::ClientConfig, shared::metadata::Metadata, utils};
+use crate::{
+    client::utils::api,
+    config::client::ClientConfig,
+    shared::{metadata::Metadata, upload_identity::UploadId},
+    utils,
+};
 
 const MAX_UPLOAD_ATTEMPT_PER_CHUNK: u32 = 5;
 
@@ -48,7 +53,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         });
 
     info!("getting upload id this might take a while");
-    let upload_id = api::get_upload_id(&mut file).await.unwrap_or_else(|e| {
+    let upload_id = UploadId::from_file(&mut file).await.unwrap_or_else(|e| {
         error!("error processing file: {e}");
         utils::error::fatal_error();
     });
@@ -88,7 +93,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
             total_chunks,
             done: bv,
         },
-        &upload_id,
+        upload_id,
         server_cfg.server(),
         &auth,
     )
@@ -122,7 +127,7 @@ async fn upload_file_concurrent(
     client: reqwest::Client,
     file_info: FileInfo,
     chunk_info: ChunkInfo,
-    upload_id: &str,
+    upload_id: UploadId,
     server_url: &str,
     token: &str,
 ) -> anyhow::Result<()> {
@@ -134,7 +139,7 @@ async fn upload_file_concurrent(
     let done = chunk_info.done;
 
     let client = Arc::new(client);
-    let upload_id = Arc::new(upload_id.to_string());
+    let upload_id = Arc::new(upload_id);
     let upload_url = Arc::new(format!("{server_url}/upload/chunk"));
     let token = Arc::new(token.to_string());
     let done = done.map(Arc::new);
@@ -196,7 +201,7 @@ async fn upload_file_concurrent(
                 let resp = match client
                     .post(&*upload_url)
                     .bearer_auth(&token)
-                    .header("Upload-ID", &*upload_id)
+                    .header("Upload-ID", upload_id.as_str())
                     .header("Total-Chunks", total_chunks)
                     .header("Current-Chunk", current_chunk_index + 1)
                     .header("Chunk-Size", chunk_size)

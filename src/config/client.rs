@@ -29,6 +29,7 @@ use tracing::{debug, error, info, warn};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClientConfig {
+    /// Server Name -> Server Config
     servers: HashMap<String, Server>,
 }
 
@@ -45,6 +46,7 @@ impl ClientConfig {
             debug!("KYSTASH_CLIENT_PATH {ow}");
             return PathBuf::from(ow);
         }
+
         let mut path = get_root_config_path().await;
         path.push("client.toml");
         path
@@ -65,7 +67,7 @@ impl ClientConfig {
             .open(path)
             .await
             .unwrap_or_else(|e| {
-                error!("{e}");
+                error!("failed to open file to write too\n{e}");
                 utils::error::fatal_error();
             });
 
@@ -79,18 +81,18 @@ impl ClientConfig {
 
     pub async fn load(path: impl AsRef<Path>) -> Self {
         let mut file = File::open(path).await.unwrap_or_else(|e| {
-            error!("{e}");
+            error!("failed to open config file.\n{e}");
             utils::error::fatal_error();
         });
 
         let mut str = String::new();
         file.read_to_string(&mut str).await.unwrap_or_else(|e| {
-            error!("{e}");
+            error!("failed to read config file.\n{e}");
             utils::error::fatal_error();
         });
 
         toml::from_str(&str).unwrap_or_else(|e| {
-            error!("invalid client config: {e}");
+            error!("invalid client config.\n{e}");
             utils::error::fatal_error();
         })
     }
@@ -102,6 +104,7 @@ impl ClientConfig {
     pub fn get_server(&self, name: &str) -> Option<&Server> {
         self.servers.get(name)
     }
+
     pub fn get_server_or_exit<'a>(&self, name: impl Into<Option<&'a str>>) -> &Server {
         let name = name.into().unwrap_or("default");
         self.get_server(name).unwrap_or_else(|| {
@@ -217,20 +220,20 @@ pub async fn generate_client_cfg(name: &str, overwrite: bool, server_path: impl 
         Ok(_) => info!("Server config backed up to {}", backup_path.display()),
         Err(e) => {
             error!("Failed to backup server config: {}", e);
-            exit(1);
+            utils::error::fatal_error();
         }
     }
 
     let mut server_cfg = server::get_server_cfg(&server_path).await;
     debug!("server config (pre): {server_cfg:?}");
 
-    let raw_pass = get_random_pass();
-    let hashed_pass = utils::sha::sha256(&raw_pass);
-
     if !overwrite && server_cfg.has_client(name) {
         error!("Server config already has a client {name}. Use --overwrite to ignore");
         return;
     }
+
+    let raw_pass = get_random_pass();
+    let hashed_pass = utils::sha::sha256(&raw_pass);
 
     server_cfg.add_client(name, ClientSettings::new(&hashed_pass));
     server_cfg.save(&server_path).await;

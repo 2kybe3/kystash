@@ -3,24 +3,24 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use actix_web::{HttpMessage, HttpResponse, Responder, http::header::HeaderMap, post, web};
+use actix_web::{HttpMessage, HttpResponse, http::header::HeaderMap, post, web};
 use std::os::unix::fs::FileExt;
 use tokio::fs::OpenOptions;
 use tracing::trace;
 
 use crate::{
     server::{WebserverState, webserver::middleware::auth::AuthClient},
-    shared::UploadIdentity,
+    shared::upload_identity::{UploadId, UploadIdentity},
 };
 
-struct Headers<'a> {
-    upload_id: &'a str,
+struct Headers {
+    upload_id: UploadId,
     total_chunks: usize,
     current_chunk: usize,
     chunk_size: usize,
 }
 
-impl<'a> Headers<'a> {
+impl Headers {
     fn log_start(&self) {
         trace!(
             "{} {}/{} @ {}",
@@ -34,33 +34,26 @@ pub async fn chunk(
     req: actix_web::HttpRequest,
     body: web::Bytes,
     web_data: web::Data<WebserverState>,
-) -> impl Responder {
-    let user = match req.extensions().get::<AuthClient>().cloned() {
-        Some(v) => v,
-        None => return HttpResponse::InternalServerError().finish(),
-    };
+) -> Result<HttpResponse, actix_web::Error> {
+    let user = req
+        .extensions()
+        .get::<AuthClient>()
+        .cloned()
+        .ok_or(actix_web::error::ErrorInternalServerError("missing auth"))?;
 
-    let headers = match extract_headers(req.headers()) {
-        Ok(v) => v,
-        Err(http) => return http,
-    };
-
+    let headers = extract_headers(req.headers())?;
     headers.log_start();
 
     let offset = (headers.current_chunk - 1) * headers.chunk_size;
 
     if body.is_empty() {
-        return HttpResponse::BadRequest().body("Empty chunk");
-    }
-
-    if headers.upload_id.len() != 16 {
-        return HttpResponse::BadRequest().body("Invalid upload id");
+        return Err(actix_web::error::ErrorBadRequest("Empty Chunk"));
     }
 
     let mut folder = web_data.cfg.get_upload_dir().await;
     folder.push(user.settings.folder_id.to_string());
     if let Err(e) = tokio::fs::create_dir_all(&folder).await {
-        return HttpResponse::InternalServerError().body(e.to_string());
+        return Err(actix_web::error::ErrorInternalServerError(e.to_string()));
     }
 
     let file_path = format!("{}/{}", folder.display(), headers.upload_id);
@@ -73,7 +66,7 @@ pub async fn chunk(
         .await
     {
         Ok(v) => v,
-        Err(e) => return HttpResponse::InternalServerError().body(e.to_string()),
+        Err(e) => return Err(actix_web::error::ErrorInternalServerError(e.to_string())),
     };
 
     let data = body.to_vec();
@@ -83,10 +76,7 @@ pub async fn chunk(
 
     match result {
         Ok(Ok(_)) => {
-            let id = UploadIdentity::new(
-                user.settings.folder_id.to_string(),
-                headers.upload_id.to_owned(),
-            );
+            let id = UploadIdentity::new(user.settings.folder_id.to_string(), headers.upload_id);
 
             web_data.chunk_map.lock().await.set_finished_chunk(
                 &id,
@@ -94,45 +84,33 @@ pub async fn chunk(
                 headers.total_chunks,
             );
 
-            HttpResponse::Ok().finish()
+            Ok(HttpResponse::Ok().finish())
         }
-        Ok(Err(e)) => HttpResponse::InternalServerError().body(e.to_string()),
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        Ok(Err(e)) => Err(actix_web::error::ErrorInternalServerError(e.to_string())),
+        Err(e) => Err(actix_web::error::ErrorInternalServerError(e.to_string())),
     }
 }
 
-fn extract_headers(headers: &HeaderMap) -> Result<Headers<'_>, HttpResponse> {
-    let upload_id = match headers.get("Upload-ID").and_then(|s| s.to_str().ok()) {
-        Some(v) => v,
-        None => return Err(HttpResponse::BadRequest().body("Invalid Upload-ID")),
-    };
+fn extract_headers(headers: &HeaderMap) -> Result<Headers, actix_web::Error> {
+    let upload_id = UploadId::try_from(headers)?;
 
-    let total_chunks = match headers
+    let total_chunks = headers
         .get("Total-Chunks")
         .and_then(|s| s.to_str().ok())
         .and_then(|s| s.parse::<usize>().ok())
-    {
-        Some(v) => v,
-        None => return Err(HttpResponse::BadRequest().body("Invalid Total-Chunks")),
-    };
+        .ok_or(actix_web::error::ErrorBadRequest("Invalid Total-Chunks"))?;
 
-    let current_chunk = match headers
+    let current_chunk = headers
         .get("Current-Chunk")
         .and_then(|s| s.to_str().ok())
         .and_then(|s| s.parse::<usize>().ok())
-    {
-        Some(v) => v,
-        None => return Err(HttpResponse::BadRequest().body("Invalid Current-Chunk")),
-    };
+        .ok_or(actix_web::error::ErrorBadRequest("Invalid Current-Chunk"))?;
 
-    let chunk_size = match headers
+    let chunk_size = headers
         .get("Chunk-Size")
         .and_then(|s| s.to_str().ok())
         .and_then(|s| s.parse::<usize>().ok())
-    {
-        Some(v) => v,
-        None => return Err(HttpResponse::BadRequest().body("Missing Chunk-Size")),
-    };
+        .ok_or(actix_web::error::ErrorBadRequest("Invalid Chunk-Size"))?;
 
     Ok(Headers {
         upload_id,

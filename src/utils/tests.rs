@@ -3,8 +3,6 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-// #[!cfg(test)]
-
 use std::path::PathBuf;
 
 pub fn test_asset_folder() -> PathBuf {

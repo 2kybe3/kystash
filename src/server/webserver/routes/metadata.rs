@@ -3,41 +3,42 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-use actix_web::{HttpMessage, HttpResponse, Responder, get, post, web};
+use actix_web::{HttpMessage, HttpResponse, get, post, web};
 
 use crate::{
     server::{WebserverState, webserver::middleware::auth::AuthClient},
-    shared::{UploadIdentity, metadata::Metadata},
+    shared::{
+        metadata::Metadata,
+        upload_identity::{UploadId, UploadIdentity},
+    },
 };
 
 #[get("/metadata")]
 pub async fn get_metadata(
     req: actix_web::HttpRequest,
     data: web::Data<WebserverState>,
-) -> impl Responder {
-    let user = match req.extensions().get::<AuthClient>().cloned() {
-        Some(v) => v,
-        None => return HttpResponse::InternalServerError().finish(),
-    };
+) -> Result<HttpResponse, actix_web::Error> {
+    let user = req
+        .extensions()
+        .get::<AuthClient>()
+        .cloned()
+        .ok_or(actix_web::error::ErrorInternalServerError("missing auth"))?;
 
-    let upload_id = match req.headers().get("Upload-ID").and_then(|s| s.to_str().ok()) {
-        Some(v) => v,
-        None => return HttpResponse::BadRequest().body("Invalid Upload-ID"),
-    };
+    let upload_id = UploadId::try_from(req.headers())?;
+    let id = UploadIdentity::new(user.settings.folder_id, upload_id);
 
-    let id = UploadIdentity::new(user.settings.folder_id, upload_id.to_owned());
+    let map = data
+        .metadata_store
+        .lock()
+        .await
+        .get_identity(&id)
+        .cloned()
+        .ok_or(actix_web::error::ErrorNotFound("metadata not found"))?;
 
-    let map = match data.metadata_store.lock().await.get_identity(&id).cloned() {
-        Some(v) => v,
-        None => return HttpResponse::NotFound().finish(),
-    };
+    let str = serde_json::to_string(&map)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
-    let str = match serde_json::to_string(&map) {
-        Ok(v) => v,
-        Err(e) => return HttpResponse::InternalServerError().body(format!("{e}")),
-    };
-
-    HttpResponse::Ok().body(str)
+    Ok(HttpResponse::Ok().body(str))
 }
 
 #[post("/metadata")]
@@ -45,34 +46,30 @@ pub async fn post_metadata(
     req: actix_web::HttpRequest,
     data: web::Data<WebserverState>,
     new_meta: web::Json<Metadata>,
-) -> impl Responder {
-    let user = match req.extensions().get::<AuthClient>().cloned() {
-        Some(v) => v,
-        None => return HttpResponse::InternalServerError().finish(),
-    };
+) -> Result<HttpResponse, actix_web::Error> {
+    let user = req
+        .extensions()
+        .get::<AuthClient>()
+        .cloned()
+        .ok_or(actix_web::error::ErrorInternalServerError("missing auth"))?;
 
-    let upload_id = match req.headers().get("Upload-ID").and_then(|s| s.to_str().ok()) {
-        Some(v) => v,
-        None => return HttpResponse::BadRequest().body("Invalid Upload-ID"),
-    };
-
-    let id = UploadIdentity::new(user.settings.folder_id, upload_id.to_owned());
+    let upload_id = UploadId::try_from(req.headers())?;
+    let id = UploadIdentity::new(user.settings.folder_id, upload_id);
 
     let mut store = data.metadata_store.lock().await;
 
-    let old_meta = match store.get_identity(&id).cloned() {
-        Some(v) => v,
-        None => return HttpResponse::NotFound().finish(),
-    };
-
+    let old_meta = store
+        .get_identity(&id)
+        .cloned()
+        .ok_or(actix_web::error::ErrorNotFound(""))?;
     let res = Metadata::change_allowed(&old_meta, &new_meta, &store);
     if !res.0 {
-        return HttpResponse::BadRequest().body(res.1.unwrap().to_owned());
+        return Err(actix_web::error::ErrorBadRequest(res.1.unwrap().to_owned()));
     }
 
     if let Err(e) = store.set_metadata(id, new_meta.0) {
-        return HttpResponse::InternalServerError().body(format!("{e}"));
+        return Err(actix_web::error::ErrorInternalServerError(e.to_string()));
     }
 
-    HttpResponse::Ok().finish()
+    Ok(HttpResponse::Ok().finish())
 }

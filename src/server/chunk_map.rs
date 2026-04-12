@@ -11,7 +11,7 @@ use std::{
 use bitvec::vec::BitVec;
 use tracing::warn;
 
-use crate::shared::UploadIdentity;
+use crate::shared::upload_identity::UploadIdentity;
 
 #[derive(Default)]
 pub struct ChunkMap(HashMap<UploadIdentity, BitVec>);
@@ -72,11 +72,15 @@ impl DerefMut for ChunkMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracing_test::traced_test;
+
+    use crate::shared::upload_identity::UploadId;
 
     #[tokio::test(name = "chunk_map_finished")]
+    #[traced_test]
     pub async fn chunk_map_finished() {
         let mut map = ChunkMap::default();
-        let identity = UploadIdentity::new("test", "test");
+        let identity = UploadIdentity::new("test", UploadId::new("test"));
         for i in 0..10 {
             map.set_finished_chunk(&identity, i as usize, 10);
         }
@@ -84,9 +88,10 @@ mod tests {
     }
 
     #[tokio::test(name = "chunk_map_random_resize_finished")]
+    #[traced_test]
     pub async fn chunk_map_random_resize_finished() {
         let mut map = ChunkMap::default();
-        let identity = UploadIdentity::new("test", "test");
+        let identity = UploadIdentity::new("test", UploadId::new("test"));
         for i in 0..10 {
             map.set_finished_chunk(&identity, i as usize, 10);
         }

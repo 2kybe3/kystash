@@ -9,5 +9,4 @@ mod upload;
 mod utils;
 pub use upload::upload;
 mod check_server;
-mod metadata;
 pub use check_server::check_server;

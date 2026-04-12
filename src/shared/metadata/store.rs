@@ -4,7 +4,10 @@
  */
 
 use crate::{
-    shared::{UploadIdentity, metadata::Metadata},
+    shared::{
+        metadata::Metadata,
+        upload_identity::{UploadId, UploadIdentity},
+    },
     utils,
 };
 use anyhow::anyhow;
@@ -102,20 +105,22 @@ impl MetadataStore {
                 let file_name = file_entry.file_name();
                 let file_name = file_name
                     .to_str()
-                    .ok_or(anyhow!("failed to convert file_name to str"))?
-                    .strip_suffix(".meta")
-                    .ok_or(anyhow!("file_name doesn't end with meta"))?;
+                    .ok_or(anyhow!("failed to convert file_name to str"))?;
 
-                if let Some(ext) = file_path.extension()
-                    && ext == "meta"
-                {
-                    store
-                        .add_meta_file(
-                            file_path.as_ref(),
-                            UploadIdentity::new(folder_name, file_name),
-                        )
-                        .await?;
-                }
+                let upload_id = match UploadId::from_file_name(file_name) {
+                    Some(v) => v,
+                    None => {
+                        warn!("invalid file name {file_name}");
+                        continue;
+                    }
+                };
+
+                store
+                    .add_meta_file(
+                        file_path.as_ref(),
+                        UploadIdentity::new(folder_name, upload_id),
+                    )
+                    .await?;
             }
         }
 
@@ -139,7 +144,9 @@ impl MetadataStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracing_test::traced_test;
 
+    #[traced_test]
     #[tokio::test(name = "metadata_store")]
     pub async fn metadata_store() -> anyhow::Result<()> {
         eprintln!(">> Stage 1 : load metadata");
@@ -148,26 +155,60 @@ mod tests {
         )
         .await?;
         eprintln!(">> Stage 2 : Verify loaded data");
+        eprintln!("{res:?}");
 
         // Exist
-        assert!(res.get_identity(&UploadIdentity::new("1", "1")).is_some());
-        assert!(res.get_identity(&UploadIdentity::new("1", "2")).is_some());
-        assert!(res.get_identity(&UploadIdentity::new("1", "3")).is_some());
+        assert!(
+            res.get_identity(&UploadIdentity::new("1", UploadId::new("1")))
+                .is_some()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("1", UploadId::new("2")))
+                .is_some()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("1", UploadId::new("3")))
+                .is_some()
+        );
 
         // Doesn't exist
-        assert!(res.get_identity(&UploadIdentity::new("1", "4")).is_none());
+        assert!(
+            res.get_identity(&UploadIdentity::new("1", UploadId::new("4")))
+                .is_none()
+        );
 
         // Exist
-        assert!(res.get_identity(&UploadIdentity::new("2", "1")).is_some());
-        assert!(res.get_identity(&UploadIdentity::new("2", "2")).is_some());
-        assert!(res.get_identity(&UploadIdentity::new("2", "3")).is_some());
+        assert!(
+            res.get_identity(&UploadIdentity::new("2", UploadId::new("1")))
+                .is_some()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("2", UploadId::new("2")))
+                .is_some()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("2", UploadId::new("3")))
+                .is_some()
+        );
 
         // Doesn't exist
-        assert!(res.get_identity(&UploadIdentity::new("1", "5")).is_none());
-        assert!(res.get_identity(&UploadIdentity::new("3", "3")).is_none());
+        assert!(
+            res.get_identity(&UploadIdentity::new("1", UploadId::new("5")))
+                .is_none()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("3", UploadId::new("3")))
+                .is_none()
+        );
 
-        assert!(res.get_identity(&UploadIdentity::new("", "")).is_none());
-        assert!(res.get_identity(&UploadIdentity::new("", "test")).is_none());
+        assert!(
+            res.get_identity(&UploadIdentity::new("", UploadId::new("")))
+                .is_none()
+        );
+        assert!(
+            res.get_identity(&UploadIdentity::new("", UploadId::new("test")))
+                .is_none()
+        );
 
         eprintln!(">> Stage 3 : Update Entry");
 
@@ -175,11 +216,16 @@ mod tests {
         let new_set_meta = Metadata::new("test".into(), Some(".test".into()), 69);
 
         let meta = res
-            .get_identity(&UploadIdentity::new("1", "1"))
+            .get_identity(&UploadIdentity::new("1", UploadId::new("1")))
             .unwrap()
             .clone();
-        res.set_metadata(UploadIdentity::new("1", "1"), new_set_meta.clone())?;
-        let new_meta = res.get_identity(&UploadIdentity::new("1", "1")).unwrap();
+        res.set_metadata(
+            UploadIdentity::new("1", UploadId::new("1")),
+            new_set_meta.clone(),
+        )?;
+        let new_meta = res
+            .get_identity(&UploadIdentity::new("1", UploadId::new("1")))
+            .unwrap();
 
         assert_ne!(meta, *new_meta);
         assert_eq!(new_set_meta, *new_meta);

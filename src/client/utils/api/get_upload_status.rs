@@ -7,13 +7,13 @@ use bitvec::vec::BitVec;
 use reqwest::StatusCode;
 use tracing::{error, warn};
 
-use crate::shared::status_response::StatusResponse;
+use crate::shared::{status_response::StatusResponse, upload_identity::UploadId};
 
 pub async fn get_upload_status(
     client: &reqwest::Client,
     chunk_count: u64,
     server_url: &str,
-    upload_id: &str,
+    upload_id: &UploadId,
     token: &str,
 ) -> Option<BitVec> {
     let url = format!("{server_url}/upload/status");
@@ -21,7 +21,7 @@ pub async fn get_upload_status(
     let resp = match client
         .get(&url)
         .bearer_auth(token)
-        .header("Upload-ID", upload_id)
+        .header("Upload-ID", upload_id.as_str())
         .send()
         .await
     {
