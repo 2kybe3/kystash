@@ -18,8 +18,8 @@ const MAX_UPLOAD_ATTEMPT_PER_CHUNK: u32 = 5;
 
 pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file_path: PathBuf) {
     let server_name = server.unwrap_or("default".to_string());
-    let path = client_config.unwrap_or(ClientConfig::default_path().await);
-    let cfg = ClientConfig::load(path).await;
+    let cfg = ClientConfig::load(client_config.unwrap_or(ClientConfig::default_path().await)).await;
+
     let server_cfg = cfg.get_server(&server_name).unwrap_or_else(|| {
         error!("{server_name} isn't in the cfg");
         exit(1);
@@ -48,17 +48,16 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         });
 
     info!("getting upload id this might take a while");
-    let upload_id = utils::id::get_upload_id(&mut file)
-        .await
-        .unwrap_or_else(|e| {
-            error!("error processing file: {e}");
-            utils::error::fatal_error();
-        });
+    let upload_id = api::get_upload_id(&mut file).await.unwrap_or_else(|e| {
+        error!("error processing file: {e}");
+        utils::error::fatal_error();
+    });
 
     info!(
         "Starting upload with id: {upload_id} file: {}",
         file_path.display()
     );
+
     let auth = server_cfg.auth().await;
 
     let client = Client::new();
@@ -67,6 +66,7 @@ pub async fn upload(client_config: Option<PathBuf>, server: Option<String>, file
         error!("failed to get file_metadata: {e}");
         utils::error::fatal_error();
     });
+
     let file_size = file_metadata.len();
     let chunk_size = 256 * 1024;
     let total_chunks = file_size.div_ceil(chunk_size);

@@ -5,3 +5,5 @@
 
 mod get_upload_status;
 pub use get_upload_status::get_upload_status;
+mod get_upload_id;
+pub use get_upload_id::get_upload_id;
