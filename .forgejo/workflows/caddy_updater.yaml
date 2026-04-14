@@ -1,3 +1,4 @@
+name: Caddy Updater
 on:
   push:
     branches:

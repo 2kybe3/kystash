@@ -1,3 +1,4 @@
+name: Lint, Build and Rebase
 on:
   push:
     branches:
