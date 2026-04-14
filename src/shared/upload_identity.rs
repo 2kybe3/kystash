@@ -14,7 +14,6 @@ use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncSeekExt},
 };
-use tracing::warn;
 use xxhash_rust::xxh3;
 
 const UPLOAD_ID_LEN: usize = 16;
@@ -48,6 +47,7 @@ impl UploadId {
         let str = file_name.strip_suffix(".meta")?;
         #[cfg(not(test))]
         if str.len() != UPLOAD_ID_LEN {
+            use tracing::warn;
             warn!("upload_id is not 16 char's long: {file_name}");
             return None;
         }

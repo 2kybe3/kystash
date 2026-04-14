@@ -14,7 +14,6 @@ use tracing::{debug, error};
 use crate::{
     config::{self, server::ServerConfig},
     server::{chunk_map::ChunkMap, commands::ServerCommands},
-    shared::metadata::store::MetadataStore,
     utils,
 };
 
@@ -51,7 +50,6 @@ pub async fn handle(command: &ServerCommands, server_config_path: Option<PathBuf
 struct WebserverState {
     pub cfg: Arc<config::server::ServerConfig>,
     pub chunk_map: Arc<Mutex<ChunkMap>>,
-    pub metadata_store: Arc<Mutex<MetadataStore>>,
 }
 
 async fn run(path: impl AsRef<Path>) {

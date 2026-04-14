@@ -18,7 +18,6 @@ use crate::{
             routes::{metadata, root, upload, version},
         },
     },
-    shared::metadata::store::MetadataStore,
     utils,
 };
 
@@ -31,20 +30,11 @@ pub async fn start(cfg: ServerConfig) {
     let auth = Auth::new(Arc::clone(&cfg_clone));
     let chunk_map = Arc::new(Mutex::new(ChunkMap::default()));
 
-    let metadata_store = MetadataStore::load_from_upload_store(&cfg.get_upload_dir().await)
-        .await
-        .unwrap_or_else(|e| {
-            error!("{e}");
-            utils::error::fatal_error();
-        });
-    let metadata_store = Arc::new(Mutex::new(metadata_store));
-
     let server = match HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(WebserverState {
                 cfg: Arc::clone(&cfg_clone),
                 chunk_map: Arc::clone(&chunk_map),
-                metadata_store: Arc::clone(&metadata_store),
             }))
             .service(root::root)
             .service(upload::chunk::chunk)

@@ -3,8 +3,6 @@
  * Copyright (C) 2026 2kybe3 <kybe@kybe.xyz>
  */
 
-pub mod store;
-
 use std::{
     io::{self, SeekFrom},
     path::Path,
@@ -17,8 +15,6 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
-
-use crate::shared::metadata::store::MetadataStore;
 
 /// How many bytes we are gonna get for magic bytes file mime detection
 const MAGIC_HEADER_SIZE: u64 = 8192;
@@ -55,11 +51,8 @@ impl Metadata {
     }
 
     /// (Allowed, Reason)
-    pub fn change_allowed(
-        old: &Self,
-        new: &Self,
-        store: &MetadataStore,
-    ) -> (bool, Option<&'static str>) {
+    /// TODO: check if public code is already in use
+    pub fn change_allowed(old: &Self, new: &Self) -> (bool, Option<&'static str>) {
         if old.uploaded_at != new.uploaded_at {
             return (false, Some("uploaded_at change not allowed"));
         }
@@ -69,8 +62,7 @@ impl Metadata {
         }
 
         if old.code != new.code
-            && let Some(code) = &new.code
-            && store.code_in_use(code)
+            && let Some(_code) = &new.code
         {
             return (false, Some("new code is already in use"));
         }
