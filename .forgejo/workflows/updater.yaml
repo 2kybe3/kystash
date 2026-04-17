@@ -8,8 +8,8 @@ env:
   PR_ASSIGNEE: kybe
   PR_TITLE: Automatic Update
   # gotten with the /repos/{owner}/{repo}/labels endpoint
-  CHECKS_FAILED_LABEL_ID: 2
-  CHECKS_SUCCEEDED_LABEL_ID: 1
+  CHECKS_FAILED_LABEL_ID: 4
+  CHECKS_SUCCEEDED_LABEL_ID: 3
 jobs:
   updater:
     runs-on: rust
